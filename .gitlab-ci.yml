@@ -20,3 +20,17 @@ build:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
     - docker build -t $IMAGE_TAG .
     - docker push $IMAGE_TAG
+
+revive:
+  stage: test
+  image: golang:1.14
+  before_script:
+    - go get -u github.com/mgechev/revive
+  script:
+    - revive
+
+golangci:
+  stage: test
+  image: golangci/golangci-lint:v1.30.0
+  script:
+    - golangci-lint run --enable-all

@@ -1,0 +1,14 @@
+checks:
+  go: true
+build:
+  nodes:
+    analysis:
+      environment:
+        go:
+          version: go1.14.7
+      tests:
+        override:
+          - go-scrutinizer-run
+filter:
+  excluded_paths:
+    - "*_test.go"
