@@ -1,6 +1,7 @@
 stages:
   - build
   - test
+  - bumpversion
 
 include:
   - template: Code-Quality.gitlab-ci.yml
@@ -20,6 +21,8 @@ build:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
     - docker build -t $IMAGE_TAG .
     - docker push $IMAGE_TAG
+  except:
+    - tags
 
 revive:
   stage: test
@@ -28,9 +31,53 @@ revive:
     - go get -u github.com/mgechev/revive
   script:
     - revive
+  except:
+    - tags
 
 golangci:
   stage: test
   image: golangci/golangci-lint:v1.30.0
   script:
     - golangci-lint run --enable-all
+  except:
+    - tags
+
+
+.bumpversion:
+  stage: bumpversion
+  image: python:3.8
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - pip install bump2version
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" >> ~/.ssh/config
+    - gpg -v --import "$GPG_PRIVATE_KEY"
+    - git config --global user.name "${GITLAB_USER_NAME}"
+    - git config --global user.email "${GITLAB_USER_EMAIL}"
+    - git config --global commit.gpgsign true
+    - git config --global user.signingkey 24BA6A3987E78C47
+    - git config --global pull.ff only
+    - git config --global merge.ff only
+    - git clone git@gitlab.com:umitop/umid.git repo
+    - cd repo
+    - bump2version ${VERSION_PART}
+    - git push --follow-tags
+  only:
+    - master
+  except:
+    - tags
+  when: manual
+
+x.1.x:
+  extends: .bumpversion
+  variables:
+    VERSION_PART: minor
+
+x.x.1:
+  extends: .bumpversion
+  variables:
+    VERSION_PART: patch
