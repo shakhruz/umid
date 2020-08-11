@@ -9,14 +9,6 @@ build:
       tests:
         override:
           - go-scrutinizer-run
-    tests:
-      project_setup:
-        override: true
-      environment:
-        go:
-          version: go1.14.7
-      tests:
-        override: true
 filter:
   excluded_paths:
     - "*_test.go"
