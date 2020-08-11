@@ -6,7 +6,7 @@ plugins:
   golint:
     enabled: true
   govet:
-    enabled: true
+    enabled: false
   markdownlint:
     enabled: true
 exclude_patterns:
