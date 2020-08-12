@@ -34,40 +34,37 @@ build:
   services:
     - docker:stable-dind
   variables:
-    IMAGE_TAG_REF: ${CI_REGISTRY_IMAGE}/${CI_COMMIT_REF_SLUG}:${CI_COMMIT_SHA}
     IMAGE_TAG_HUB: ${CI_PROJECT_PATH}
     IMAGE_TAG_GITLAB: ${CI_REGISTRY_IMAGE}/${CI_PROJECT_PATH}
-    IMAGE_TAG_GITHUB: ${CI_PROJECT_PATH}/${CI_PROJECT_NAME}
+    IMAGE_TAG_GITHUB: docker.pkg.github.com/${CI_PROJECT_PATH}/${CI_PROJECT_NAME}
   before_script:
     - echo "${CI_REGISTRY_PASSWORD}" | docker login -u ${CI_REGISTRY_USER} --password-stdin ${CI_REGISTRY}
     - echo "${GITHUB_TOKEN}" | docker login -u umitop --password-stdin https://docker.pkg.github.com
     - echo "${DOCKER_HUB_TOKEN}" | docker login -u umitop --password-stdin
   script:
     - echo 'Build container'
-    - docker build -t ${IMAGE_TAG_REF} -t ${IMAGE_TAG_GITLAB}:${CI_COMMIT_TAG} -t ${IMAGE_TAG_GITLAB}:latest .
+    - docker build -t ${IMAGE_TAG_GITLAB}:${CI_COMMIT_TAG} -t ${IMAGE_TAG_GITLAB}:latest .
     - echo 'Push to GitLab'
-    - docker push ${IMAGE_TAG_REF}
     - docker push ${IMAGE_TAG_GITLAB}:${CI_COMMIT_TAG}
     - docker push ${IMAGE_TAG_GITLAB}:latest
     - echo 'Push to Docker Hub'
-    - docker tag ${IMAGE_TAG_REF} ${IMAGE_TAG_HUB}:${CI_COMMIT_TAG}
-    - docker tag ${IMAGE_TAG_REF} ${IMAGE_TAG_HUB}:latest
+    - docker tag ${IMAGE_TAG_GITLAB}:${CI_COMMIT_TAG} ${IMAGE_TAG_HUB}:${CI_COMMIT_TAG}
+    - docker tag ${IMAGE_TAG_GITLAB}:latest ${IMAGE_TAG_HUB}:latest
     - docker push ${IMAGE_TAG_HUB}:${CI_COMMIT_TAG}
     - docker push ${IMAGE_TAG_HUB}:latest
     - echo 'Push to GitHub'
-    - docker tag ${IMAGE_TAG_REF} ${IMAGE_TAG_GITHUB}:${CI_COMMIT_TAG}
-    - docker tag ${IMAGE_TAG_REF} ${IMAGE_TAG_GITHUB}:latest
+    - docker tag ${IMAGE_TAG_GITLAB}:${CI_COMMIT_TAG} ${IMAGE_TAG_GITHUB}:${CI_COMMIT_TAG}
+    - docker tag ${IMAGE_TAG_GITLAB}:latest ${IMAGE_TAG_GITHUB}:latest
     - docker push ${IMAGE_TAG_GITHUB}:${CI_COMMIT_TAG}
     - docker push ${IMAGE_TAG_GITHUB}:latest
     - echo 'Clean up'
-    - docker rmi ${IMAGE_TAG_REF} ${IMAGE_TAG_GITLAB}:${CI_COMMIT_TAG} ${IMAGE_TAG_GITLAB}:latest
+    - docker rmi ${IMAGE_TAG_GITLAB}:${CI_COMMIT_TAG} ${IMAGE_TAG_GITLAB}:latest
     - docker rmi ${IMAGE_TAG_GITHUB}:${CI_COMMIT_TAG} ${IMAGE_TAG_GITHUB}:latest
     - docker rmi ${IMAGE_TAG_HUB}:${CI_COMMIT_TAG} ${IMAGE_TAG_HUB}:latest
   after_script:
     - docker logout ${CI_REGISTRY}
     - docker logout https://docker.pkg.github.com
     - docker logout
-
   only:
     - tags
 
