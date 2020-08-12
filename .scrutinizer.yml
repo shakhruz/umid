@@ -9,6 +9,7 @@ build:
       tests:
         override:
           - go-scrutinizer-run
+          - golint-run
 filter:
   excluded_paths:
     - "*_test.go"
