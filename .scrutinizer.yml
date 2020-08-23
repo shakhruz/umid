@@ -10,6 +10,9 @@ build:
         override:
           - go-scrutinizer-run
           - golint-run
+          - govet-run
 filter:
   excluded_paths:
     - "*_test.go"
+  dependency_paths:
+    - "vendor/"

@@ -70,11 +70,11 @@ build:
 
 revive:
   stage: test
-  image: golang:1.14
+  image: golang:1.15
   before_script:
     - go get -u github.com/mgechev/revive
   script:
-    - revive
+    - revive -config .revive.toml -formatter friendly -exclude ./vendor/... ./...
   except:
     - tags
 
