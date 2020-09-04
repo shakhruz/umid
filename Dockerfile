@@ -1,7 +1,7 @@
 FROM golang:1.15 AS build
 WORKDIR /go/src/github.com/umitop/umid/
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -trimpath -mod vendor -ldflags '-s -w -extldflags "-static"' -tags netgo -o umid main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -trimpath -mod vendor -ldflags '-s -w -extldflags "-static"' -tags netgo -o umid .
 RUN echo 'umi:x:1000:1000::/home/umi:/bin/sh' > /etc/passwd_
 
 FROM scratch

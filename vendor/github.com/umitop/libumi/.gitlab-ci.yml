@@ -1,0 +1,93 @@
+stages:
+  - test
+  - bumpversion
+
+include:
+  - template: Code-Quality.gitlab-ci.yml
+  - template: SAST.gitlab-ci.yml
+  - template: Dependency-Scanning.gitlab-ci.yml
+  - template: Secret-Detection.gitlab-ci.yml
+
+test:
+  stage: test
+  image: golang:1.15
+  before_script:
+    - curl -sSL https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+    - chmod +x ./cc-test-reporter
+    - ./cc-test-reporter before-build
+  script:
+    - go test -coverprofile=c.out -covermode count
+  after_script:
+    - sed -i 's/github.com\/umitop\/libumi\///g' c.out
+    - ./cc-test-reporter after-build
+    - go get github.com/jstemmer/go-junit-report
+    - go test -v 2>&1 | go-junit-report -set-exit-code > junit.xml
+    - go get github.com/t-yuki/gocover-cobertura
+    - gocover-cobertura < c.out > cobertura.xml
+    - bash <(curl -sSL https://coverage.codacy.com/get.sh)
+  coverage: '/coverage: \d+.\d+% of statements/'
+  artifacts:
+    reports:
+      cobertura: cobertura.xml
+      junit: junit.xml
+  only:
+    - master
+  except:
+    - tags
+
+revive:
+  stage: test
+  image: golang:1.15
+  before_script:
+    - go get -u github.com/mgechev/revive
+  script:
+    - revive -config .revive.toml -formatter friendly ./...
+  except:
+    - tags
+
+golangci:
+  stage: test
+  image: golangci/golangci-lint:v1.30.0
+  script:
+    - golangci-lint run --enable-all
+  except:
+    - tags
+
+.bumpversion:
+  stage: bumpversion
+  image: python:3.8
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - pip install bump2version
+    - eval $(ssh-agent -s)
+    - echo "${SSH_PRIVATE_KEY}" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" >> ~/.ssh/config
+    - gpg -v --import "${GPG_PRIVATE_KEY}"
+    - git config --global user.name "${GITLAB_USER_NAME}"
+    - git config --global user.email "${GITLAB_USER_EMAIL}"
+    - git config --global commit.gpgsign true
+    - git config --global user.signingkey ${GPG_KEY}
+    - git config --global pull.ff only
+    - git config --global merge.ff only
+    - git clone git@gitlab.com:${CI_PROJECT_PATH}.git repo
+    - cd repo
+    - bump2version ${VERSION_PART}
+    - git push --follow-tags
+  only:
+    - master
+  except:
+    - tags
+  when: manual
+
+x.1.x:
+  extends: .bumpversion
+  variables:
+    VERSION_PART: minor
+
+x.x.1:
+  extends: .bumpversion
+  variables:
+    VERSION_PART: patch
