@@ -36,14 +36,14 @@ func TestListStructures(t *testing.T) {
 	var counter int
 
 	bc := &bcMock{}
-	bc.FnStructures = func() ([]umid.Structure, error) {
+	bc.FnStructures = func() ([]*umid.Structure, error) {
 		if counter == 0 {
 			counter = 1
 			return nil, errors.New("not found")
 		}
 
-		arr := make([]umid.Structure, 1)
-		arr[0] = umid.Structure{
+		arr := make([]*umid.Structure, 1)
+		arr[0] = &umid.Structure{
 			Prefix: "umi",
 			Name:   "UMI",
 		}
@@ -63,11 +63,11 @@ func TestListStructures(t *testing.T) {
 	}{
 		{
 			`{"jsonrpc":"2.0","method":"listStructures","id":1}`,
-			`{"jsonrpc":"2.0","error":{"code":-1,"message":"not found"},"id":1}`,
+			`{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":1}`,
 		},
 		{
 			`{"jsonrpc":"2.0","method":"listStructures","id":2}`,
-			`{"jsonrpc":"2.0","result":[{"prefix":"umi","name":"UMI","fee_percent":0,"profit_percent":0,"deposit_percent":0,"fee_address":"","profit_address":"","master_address":"","transit_addresses":null,"balance":0}],"id":2}`,
+			`{"jsonrpc":"2.0","result":[{"prefix":"umi","name":"UMI","fee_percent":0,"profit_percent":0,"deposit_percent":0,"fee_address":"","profit_address":"","master_address":"","balance":0,"address_count":0}],"id":2}`,
 		},
 	}
 

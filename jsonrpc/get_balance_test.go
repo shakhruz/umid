@@ -73,20 +73,19 @@ func TestGetBalance(t *testing.T) {
 		},
 		{
 			`{"jsonrpc":"2.0","method":"getBalance","params":{"address":"aaa"},"id":5}`,
-			`{"jsonrpc":"2.0","error":{"code":-1,"message":"invalid address"},"id":5}`,
+			`{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":5}`,
 		},
 		{
 			`{"jsonrpc":"2.0","method":"getBalance","params":{"address":"umi1aaa"},"id":6}`,
-			`{"jsonrpc":"2.0","result":{"confirmed":1,"interest":2,"unconfirmed":3},"id":6}`,
+			`{"jsonrpc":"2.0","result":{"confirmed":1,"interest":2,"unconfirmed":3,"type":""},"id":6}`,
 		},
 		{
 			`{"jsonrpc":"2.0","method":"getBalance","params":{"address":"umi1bbb"},"id":7}`,
-			`{"jsonrpc":"2.0","result":{"confirmed":10,"interest":20,"unconfirmed":30,"composite":0},"id":7}`,
+			`{"jsonrpc":"2.0","result":{"confirmed":10,"interest":20,"unconfirmed":30,"composite":0,"type":""},"id":7}`,
 		},
 		{
 			`[{"jsonrpc":"2.0","method":"getBalance","params":{"address":"umi1bbb"},"id":8}, 1]`,
-			`[{"jsonrpc":"2.0","result":{"confirmed":10,"interest":20,"unconfirmed":30,"composite":0},"id":8}` +
-				`,{"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"},"id":null}]`,
+			`[{"jsonrpc":"2.0","result":{"confirmed":10,"interest":20,"unconfirmed":30,"composite":0,"type":""},"id":8},{"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"},"id":null}]`,
 		},
 	}
 

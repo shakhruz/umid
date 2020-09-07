@@ -34,14 +34,14 @@ import (
 
 func TestListTransaction(t *testing.T) {
 	bc := &bcMock{}
-	bc.FnTransactionsByAddress = func(s string) ([]umid.Transaction, error) {
+	bc.FnTransactionsByAddress = func(s string) ([]*umid.Transaction, error) {
 		if s == "umi1aaa" {
-			return make([]umid.Transaction, 0), nil
+			return make([]*umid.Transaction, 0), nil
 		}
 
 		if s == "umi1bbb" {
-			arr := make([]umid.Transaction, 1)
-			arr[0] = umid.Transaction{Hash: make([]byte, 32)}
+			arr := make([]*umid.Transaction, 1)
+			arr[0] = &umid.Transaction{Hash: strings.Repeat("00", 32)}
 
 			return arr, nil
 		}
@@ -77,7 +77,7 @@ func TestListTransaction(t *testing.T) {
 		},
 		{
 			`{"jsonrpc":"2.0","method":"listTransactions","params":{"address":"aaa"},"id":5}`,
-			`{"jsonrpc":"2.0","error":{"code":-1,"message":"invalid address"},"id":5}`,
+			`{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":5}`,
 		},
 		{
 			`{"jsonrpc":"2.0","method":"listTransactions","params":{"address":"umi1aaa"},"id":6}`,
@@ -85,7 +85,7 @@ func TestListTransaction(t *testing.T) {
 		},
 		{
 			`{"jsonrpc":"2.0","method":"listTransactions","params":{"address":"umi1bbb"},"id":7}`,
-			`{"jsonrpc":"2.0","result":[{"hash":"0000000000000000000000000000000000000000000000000000000000000000"}],"id":7}`,
+			`{"jsonrpc":"2.0","result":[{"hash":"0000000000000000000000000000000000000000000000000000000000000000","block_height":0,"block_tx_idx":0,"version":0,"sender":""}],"id":7}`,
 		},
 		{
 			`[{"jsonrpc":"2.0","method":"listTransactions","params":{"address":"umi1aaa"},"id":8}, 1]`,

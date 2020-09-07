@@ -26,10 +26,11 @@ type bcMock struct {
 	FnBalance               func(string) (*umid.Balance, error)
 	FnAddTransaction        func([]byte) error
 	FnStructureByPrefix     func(string) (*umid.Structure, error)
-	FnStructures            func() ([]umid.Structure, error)
-	FnTransactionsByAddress func(string) ([]umid.Transaction, error)
+	FnStructures            func() ([]*umid.Structure, error)
+	FnTransactionsByAddress func(string) ([]*umid.Transaction, error)
 	FnAddBlock              func([]byte) error
 	FnLastBlockHeight       func() (uint32, error)
+	FnBlocksByHeight        func(uint64) ([][]byte, error)
 }
 
 func (m *bcMock) Balance(s string) (*umid.Balance, error) {
@@ -44,11 +45,11 @@ func (m *bcMock) StructureByPrefix(s string) (*umid.Structure, error) {
 	return m.FnStructureByPrefix(s)
 }
 
-func (m *bcMock) Structures() ([]umid.Structure, error) {
+func (m *bcMock) Structures() ([]*umid.Structure, error) {
 	return m.FnStructures()
 }
 
-func (m *bcMock) TransactionsByAddress(s string) ([]umid.Transaction, error) {
+func (m *bcMock) TransactionsByAddress(s string) ([]*umid.Transaction, error) {
 	return m.FnTransactionsByAddress(s)
 }
 
@@ -58,4 +59,8 @@ func (m *bcMock) LastBlockHeight() (uint32, error) {
 
 func (m *bcMock) AddBlock(b []byte) error {
 	return m.FnAddBlock(b)
+}
+
+func (m *bcMock) BlocksByHeight(n uint64) ([][]byte, error) {
+	return m.BlocksByHeight(n)
 }
