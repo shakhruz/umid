@@ -31,6 +31,7 @@ type bcMock struct {
 	FnAddBlock              func([]byte) error
 	FnLastBlockHeight       func() (uint32, error)
 	FnBlocksByHeight        func(uint64) ([][]byte, error)
+	FnMempool               func() (umid.IMempool, error)
 }
 
 func (m *bcMock) Balance(s string) (*umid.Balance, error) {
@@ -62,5 +63,9 @@ func (m *bcMock) AddBlock(b []byte) error {
 }
 
 func (m *bcMock) BlocksByHeight(n uint64) ([][]byte, error) {
-	return m.BlocksByHeight(n)
+	return m.FnBlocksByHeight(n)
+}
+
+func (m *bcMock) Mempool() (umid.IMempool, error) {
+	return m.FnMempool()
 }

@@ -24,9 +24,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"umid/umid"
 )
 
-func (rpc *RPC) sendTransaction(raw json.RawMessage, res *response) {
+func sendTransaction(bc umid.IBlockchain, raw json.RawMessage, res *response) {
 	prm := new(struct {
 		Base64 []byte `json:"base64"`
 	})
@@ -37,7 +38,7 @@ func (rpc *RPC) sendTransaction(raw json.RawMessage, res *response) {
 		return
 	}
 
-	if err := rpc.blockchain.AddTransaction(prm.Base64); err != nil {
+	if err := bc.AddTransaction(prm.Base64); err != nil {
 		res.Error = &respError{
 			Code:    -1,
 			Message: err.Error(),

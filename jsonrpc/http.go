@@ -21,12 +21,16 @@
 package jsonrpc
 
 import (
+	"compress/gzip"
 	"io/ioutil"
 	"net/http"
 	"time"
 )
 
-const httpMaxUploadSize = 10 * 1024 * 1024
+const (
+	httpMaxUploadSize  = 10 * 1024 * 1024
+	httpMaxRequestTime = 10
+)
 
 // HTTP ...
 func (rpc *RPC) HTTP(w http.ResponseWriter, r *http.Request) {
@@ -45,7 +49,13 @@ func (rpc *RPC) HTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, err := ioutil.ReadAll(http.MaxBytesReader(w, r.Body, httpMaxUploadSize))
+	rdr := http.MaxBytesReader(w, r.Body, httpMaxUploadSize)
+
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		rdr, _ = gzip.NewReader(rdr)
+	}
+
+	req, err := ioutil.ReadAll(rdr)
 	if err != nil {
 		code, msg := http.StatusInternalServerError, errInternalError
 
@@ -83,9 +93,8 @@ func (rpc *RPC) HTTP(w http.ResponseWriter, r *http.Request) {
 
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(b)
-	case <-time.After(time.Second):
+	case <-time.After(httpMaxRequestTime * time.Second):
 		w.WriteHeader(http.StatusRequestTimeout)
-		_, _ = w.Write([]byte(`time is up`))
 	case <-ctx.Done():
 		return
 	}
@@ -124,7 +133,7 @@ func setCORSHeaders(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		w.Header().Set("Access-Control-Allow-Methods", "POST,OPTIONS")
 		w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
-		w.Header().Set("Access-Control-Max-Age", "1") // 86400
+		w.Header().Set("Access-Control-Max-Age", "86400")
 		w.Header().Set("Vary", "Origin")
 
 		if r.Header.Get("Access-Control-Request-Headers") != "" {

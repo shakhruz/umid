@@ -65,8 +65,8 @@ type RPC struct {
 	blockchain    umid.IBlockchain
 	upgrader      websocket.Upgrader
 	queue         chan rawRequest
-	methods       map[string]func(json.RawMessage, *response)
-	notifications map[string]func(json.RawMessage)
+	methods       map[string]func(umid.IBlockchain, json.RawMessage, *response)
+	notifications map[string]func(umid.IBlockchain, json.RawMessage)
 }
 
 // NewRPC ...
@@ -77,8 +77,8 @@ func NewRPC(ctx context.Context, wg *sync.WaitGroup, bc umid.IBlockchain) *RPC {
 		blockchain:    bc,
 		upgrader:      websocket.Upgrader{},
 		queue:         make(chan rawRequest, workerQueueLen),
-		methods:       make(map[string]func(json.RawMessage, *response)),
-		notifications: make(map[string]func(json.RawMessage)),
+		methods:       make(map[string]func(umid.IBlockchain, json.RawMessage, *response)),
+		notifications: make(map[string]func(umid.IBlockchain, json.RawMessage)),
 	}
 }
 

@@ -40,6 +40,10 @@ const (
 	httpIdleTimeoutSec  = 60
 )
 
+type server struct {
+	srv *http.Server
+}
+
 func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 	log.Println("start")
@@ -52,29 +56,19 @@ func main() {
 	rpc := jsonrpc.NewRPC(ctx, wg, bc)
 	net := network.NewNetwork(ctx, wg, bc)
 
-	go db.Migrate()
-	go db.BlockConfirmer()
+	go db.Worker()
 	go bc.Worker()
 	go rpc.Worker()
 	go net.Worker()
 
 	http.HandleFunc("/json-rpc", rpc.HTTP)
 	http.HandleFunc("/json-rpc-ws", rpc.WebSocket)
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
 
-	srv := &http.Server{
-		Addr: "127.0.0.1:8080",
-
-		ReadTimeout:       time.Second,
-		WriteTimeout:      time.Second * httpWriteTimeoutSec,
-		IdleTimeout:       time.Second * httpIdleTimeoutSec,
-		ReadHeaderTimeout: time.Second,
-	}
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Println(err.Error())
-		}
-	}()
+	srv := newServer()
+	go srv.serve()
 
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt)
@@ -86,12 +80,40 @@ func main() {
 
 	cancel()
 
-	if err := srv.Shutdown(context.Background()); err != nil {
-		log.Println(err.Error())
-	}
+	srv.shutdown()
 
 	log.Println("wait group")
 	wg.Wait()
 
 	log.Println("stopped")
+}
+
+func newServer() server {
+	addr := "127.0.0.1:8080"
+	if val, ok := os.LookupEnv("BIND"); ok {
+		addr = val
+	}
+
+	return server{
+		srv: &http.Server{
+			Addr: addr,
+
+			ReadTimeout:       time.Second,
+			WriteTimeout:      time.Second * httpWriteTimeoutSec,
+			IdleTimeout:       time.Second * httpIdleTimeoutSec,
+			ReadHeaderTimeout: time.Second,
+		},
+	}
+}
+
+func (s server) serve() {
+	if err := s.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Println(err.Error())
+	}
+}
+
+func (s server) shutdown() {
+	if err := s.srv.Shutdown(context.Background()); err != nil {
+		log.Println(err.Error())
+	}
 }

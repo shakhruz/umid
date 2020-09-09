@@ -38,8 +38,8 @@ func TestSendTransaction(t *testing.T) {
 
 	bc := &bcMock{}
 	bc.FnAddTransaction = func(s []byte) error {
-		if bytes.Compare(make([]byte, 150), s) == 0 {
-			return errors.New("invalid transaction")	
+		if bytes.Equal(make([]byte, 150), s) {
+			return errors.New("invalid transaction")
 		}
 
 		return nil

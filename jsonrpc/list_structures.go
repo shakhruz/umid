@@ -22,10 +22,11 @@ package jsonrpc
 
 import (
 	"encoding/json"
+	"umid/umid"
 )
 
-func (rpc *RPC) listStructures(_ json.RawMessage, res *response) {
-	str, err := rpc.blockchain.Structures()
+func listStructures(bc umid.IBlockchain, _ json.RawMessage, res *response) {
+	str, err := bc.Structures()
 	if err != nil {
 		res.Error = &respError{
 			Code:    -32603,

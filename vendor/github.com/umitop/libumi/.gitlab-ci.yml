@@ -47,9 +47,9 @@ revive:
 
 golangci:
   stage: test
-  image: golangci/golangci-lint:v1.30.0
+  image: golangci/golangci-lint:v1.31
   script:
-    - golangci-lint run --enable-all
+    - golangci-lint run --enable-all --disable=gomnd --tests=false
   except:
     - tags
 

@@ -113,6 +113,8 @@ github.com/umitop/libumi v0.0.0-20200907104611-975875d49498 h1:aZrKXg0TZfEYHPGJn
 github.com/umitop/libumi v0.0.0-20200907104611-975875d49498/go.mod h1:6UWQsxrpkFLVhq0lU3BhsgH3JA/mhyFY+JO+g43686o=
 github.com/umitop/libumi v0.0.0-20200907105227-8f91cf48b4b5 h1:Rbao7eYlTldBUH8NGp4lLCsIhr5pEQ9Gmb4PX4aMSwc=
 github.com/umitop/libumi v0.0.0-20200907105227-8f91cf48b4b5/go.mod h1:6UWQsxrpkFLVhq0lU3BhsgH3JA/mhyFY+JO+g43686o=
+github.com/umitop/libumi v0.0.0-20200909110620-7c6f42257a92 h1:pJ8VRBvD9foYR6nbvI+9mpCX7P9zxxwsIfflBCZfBvs=
+github.com/umitop/libumi v0.0.0-20200909110620-7c6f42257a92/go.mod h1:6UWQsxrpkFLVhq0lU3BhsgH3JA/mhyFY+JO+g43686o=
 github.com/zenazn/goji v0.9.0/go.mod h1:7S9M489iMyHBNxwZnk9/EHS098H4/F6TATF2mIxtB1Q=
 go.uber.org/atomic v1.3.2/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
 go.uber.org/atomic v1.4.0/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=

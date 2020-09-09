@@ -22,9 +22,10 @@ package jsonrpc
 
 import (
 	"encoding/json"
+	"umid/umid"
 )
 
-func (rpc *RPC) listBlocks(raw json.RawMessage, res *response) {
+func listBlocks(bc umid.IBlockchain, raw json.RawMessage, res *response) {
 	prm := new(struct {
 		Height uint64 `json:"height"`
 	})
@@ -35,7 +36,7 @@ func (rpc *RPC) listBlocks(raw json.RawMessage, res *response) {
 		return
 	}
 
-	b, err := rpc.blockchain.BlocksByHeight(prm.Height)
+	b, err := bc.BlocksByHeight(prm.Height)
 	if err != nil {
 		res.Error = &respError{
 			Code:    -32603,

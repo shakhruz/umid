@@ -22,9 +22,10 @@ package jsonrpc
 
 import (
 	"encoding/json"
+	"umid/umid"
 )
 
-func (rpc *RPC) getStructure(raw json.RawMessage, res *response) {
+func getStructure(bc umid.IBlockchain, raw json.RawMessage, res *response) {
 	prm := new(struct {
 		Prefix string `json:"prefix"`
 	})
@@ -35,7 +36,7 @@ func (rpc *RPC) getStructure(raw json.RawMessage, res *response) {
 		return
 	}
 
-	str, err := rpc.blockchain.StructureByPrefix(prm.Prefix)
+	str, err := bc.StructureByPrefix(prm.Prefix)
 	if err != nil {
 		res.Error = &respError{
 			Code:    -32603,

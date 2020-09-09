@@ -22,9 +22,10 @@ package jsonrpc
 
 import (
 	"encoding/json"
+	"umid/umid"
 )
 
-func (rpc *RPC) getBalance(raw json.RawMessage, res *response) {
+func getBalance(bc umid.IBlockchain, raw json.RawMessage, res *response) {
 	prm := new(struct {
 		Address string `json:"address"`
 	})
@@ -35,7 +36,7 @@ func (rpc *RPC) getBalance(raw json.RawMessage, res *response) {
 		return
 	}
 
-	bal, err := rpc.blockchain.Balance(prm.Address)
+	bal, err := bc.Balance(prm.Address)
 	if err != nil {
 		res.Error = &respError{
 			Code:    -32603,

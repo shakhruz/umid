@@ -68,18 +68,12 @@ func (bc *Blockchain) TransactionsByAddress(s string) ([]*umid.Transaction, erro
 			BlockHeight: tx.BlockHeight,
 			BlockTxIdx:  tx.BlockTxIdx,
 			Version:     tx.Version,
-			Sender:      (*libumi.Address)(&tx.Sender).Bech32(),
+			Sender:      convertAddress(tx.Sender),
+			Recipient:   convertAddress(tx.Recipient),
 			Value:       tx.Value,
+			FeeAddress:  convertAddress(tx.FeeAddress),
 			FeeValue:    tx.FeeValue,
 			Structure:   tx.Structure,
-		}
-
-		if tx.Recipient != nil {
-			t.Recipient = (*libumi.Address)(&tx.Recipient).Bech32()
-		}
-
-		if tx.FeeAddress != nil {
-			t.FeeAddress = (*libumi.Address)(&tx.FeeAddress).Bech32()
 		}
 
 		txs = append(txs, t)
@@ -89,12 +83,26 @@ func (bc *Blockchain) TransactionsByAddress(s string) ([]*umid.Transaction, erro
 }
 
 // VerifyTransaction ...
-func (bc *Blockchain) VerifyTransaction(b []byte) error {
-	t := (libumi.Transaction)(b)
+func (bc *Blockchain) VerifyTransaction(t []byte) error {
+	const (
+		minValue     = 1
+		maxSafeValue = 90_071_992_547_409_91
+	)
 
-	if t.Value() == 0 {
-		return errTxInvalidValue
+	if libumi.VersionTx(t) == libumi.Basic {
+		val := (libumi.TxBasic)(t).Value()
+		if val < minValue || val > maxSafeValue {
+			return errTxInvalidValue
+		}
 	}
 
-	return t.Verify()
+	return libumi.VerifyTx(t)
+}
+
+func convertAddress(b []byte) (s string) {
+	if b != nil {
+		s = (libumi.Address)(b).Bech32()
+	}
+
+	return s
 }

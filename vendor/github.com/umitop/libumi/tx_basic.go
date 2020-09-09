@@ -21,65 +21,51 @@
 package libumi
 
 import (
-	"crypto/ed25519"
-	"crypto/sha256"
 	"encoding/binary"
 )
 
-// HeaderLength ...
-const HeaderLength = 167
+// TxBasic is ...
+type TxBasic []byte
 
-// Header ...
-type Header []byte
+// NewTxBasic ...
+func NewTxBasic() TxBasic {
+	t := make([]byte, TxLength)
+	setTxVersion(t, Basic)
 
-// Hash ...
-func (h Header) Hash() []byte {
-	s := sha256.Sum256(h)
-
-	return s[:]
-}
-
-// MerkleRootHash ...
-func (h Header) MerkleRootHash() []byte {
-	return h[33:65]
-}
-
-// PreviousBlockHash ...
-func (h Header) PreviousBlockHash() []byte {
-	return h[1:33]
-}
-
-// PublicKey ...
-func (h Header) PublicKey() ed25519.PublicKey {
-	return ed25519.PublicKey(h[71:103])
-}
-
-// Signature ...
-func (h Header) Signature() []byte {
-	return h[103:167]
-}
-
-// Timestamp ..
-func (h Header) Timestamp() uint32 {
-	return binary.BigEndian.Uint32(h[65:69])
-}
-
-// TxCount ...
-func (h Header) TxCount() uint16 {
-	return binary.BigEndian.Uint16(h[69:71])
-}
-
-// Verify ...
-func (h Header) Verify() (ok bool, err error) {
-	ok = ed25519.Verify(h.PublicKey(), h[0:103], h.Signature())
-	if !ok {
-		err = ErrInvalidSignature
-	}
-
-	return ok, err
+	return t
 }
 
 // Version ...
-func (h Header) Version() uint8 {
-	return h[0]
+func (t TxBasic) Version() uint8 {
+	return t[0]
+}
+
+// Sender ...
+func (t TxBasic) Sender() Address {
+	return Address(t[1:35])
+}
+
+// SetSender ...
+func (t TxBasic) SetSender(a Address) {
+	copy(t[1:35], a)
+}
+
+// Recipient ...
+func (t TxBasic) Recipient() Address {
+	return Address(t[35:69])
+}
+
+// SetRecipient ...
+func (t TxBasic) SetRecipient(a Address) {
+	copy(t[35:69], a)
+}
+
+// Value ...
+func (t TxBasic) Value() uint64 {
+	return binary.BigEndian.Uint64(t[69:77])
+}
+
+// SetValue ...
+func (t TxBasic) SetValue(n uint64) {
+	binary.BigEndian.PutUint64(t[69:77], n)
 }

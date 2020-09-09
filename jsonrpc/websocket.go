@@ -83,15 +83,11 @@ func (rpc *RPC) writer(ctx context.Context, conn *websocket.Conn, res <-chan []b
 				log.Println(err.Error())
 			}
 		case <-ctx.Done():
-			log.Println("local context done")
-
 			return
 		case <-rpc.ctx.Done():
-			log.Println("ws writer shutdown")
-
 			data := websocket.FormatCloseMessage(websocket.CloseServiceRestart, "")
 			if err := conn.WriteControl(websocket.CloseMessage, data, time.Now().Add(time.Second)); err != nil {
-				log.Println("ccccc", err.Error())
+				log.Println(err.Error())
 			}
 
 			if err := conn.Close(); err != nil && !strings.Contains(err.Error(), "use of closed network connection") {

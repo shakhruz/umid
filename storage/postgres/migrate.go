@@ -21,7 +21,6 @@
 package postgres
 
 import (
-	"errors"
 	"log"
 	"time"
 	"umid/storage/postgres/schema"
@@ -34,13 +33,22 @@ func (s *postgres) Migrate() {
 	s.wg.Add(1)
 	defer s.wg.Done()
 
-	// retry if database if not available
-	for !s.migrate() {
-		time.Sleep(time.Second)
+	// retry if database is not available
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		default:
+			if s.doMigrate() {
+				return
+			}
+
+			time.Sleep(time.Second)
+		}
 	}
 }
 
-func (s *postgres) migrate() bool {
+func (s *postgres) doMigrate() bool {
 	tx, err := s.conn.Begin(s.ctx)
 	if err != nil {
 		log.Println(err.Error())
@@ -48,11 +56,7 @@ func (s *postgres) migrate() bool {
 		return false
 	}
 
-	defer func() {
-		if err := tx.Rollback(s.ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
-			log.Println(err.Error())
-		}
-	}()
+	defer func() { _ = tx.Rollback(s.ctx) }()
 
 	cur, _ := s.currentVersion(tx)
 
@@ -91,8 +95,7 @@ func (s *postgres) migrate() bool {
 }
 
 func (s *postgres) currentVersion(tx pgx.Tx) (v int, err error) {
-	_, err = tx.Exec(s.ctx, sequences.DBVersion)
-	if err == nil {
+	if _, err = tx.Exec(s.ctx, sequences.DBVersion); err == nil {
 		err = tx.QueryRow(s.ctx, `select setval('db_version', nextval('db_version'), false)`).Scan(&v)
 	}
 

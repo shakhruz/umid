@@ -67,3 +67,8 @@ func (bc *Blockchain) Worker() {
 		}
 	}
 }
+
+// Mempool ...
+func (bc *Blockchain) Mempool() (umid.IMempool, error) {
+	return bc.storage.Mempool()
+}

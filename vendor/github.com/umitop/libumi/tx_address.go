@@ -18,59 +18,59 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package postgres
+package libumi
 
-import (
-	"context"
-	"errors"
-	"log"
-	"umid/umid"
+// TxAddress is ...
+type TxAddress []byte
 
-	"github.com/jackc/pgx/v4"
-)
+// NewTxUpdProfitAddr ...
+func NewTxUpdProfitAddr() TxAddress {
+	t := make([]byte, TxLength)
+	setTxVersion(t, UpdateProfitAddress)
 
-type mempool struct {
-	ctx context.Context
-	tx  pgx.Tx
-	val []byte
+	return t
 }
 
-// Mempool ...
-func (s *postgres) Mempool() (umid.IMempool, error) {
-	tx, err := s.conn.Begin(s.ctx)
-	if err != nil {
-		return nil, err
-	}
+// NewTxUpdFeeAddr ...
+func NewTxUpdFeeAddr() TxAddress {
+	t := make([]byte, TxLength)
+	setTxVersion(t, UpdateFeeAddress)
 
-	_, err = tx.Exec(s.ctx, `declare cur no scroll cursor for select raw from mempool order by priority for update`)
-	if err != nil {
-		_ = tx.Rollback(s.ctx)
-
-		return nil, err
-	}
-
-	return &mempool{s.ctx, tx, make([]byte, 0, 150)}, nil
+	return t
 }
 
-func (m *mempool) Next() bool {
-	row := m.tx.QueryRow(m.ctx, `fetch next from cur`)
-	if err := row.Scan(&m.val); err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
-			_ = m.tx.Rollback(m.ctx)
-		}
+// NewTxCrtTransitAddr ...
+func NewTxCrtTransitAddr() TxAddress {
+	t := make([]byte, TxLength)
+	setTxVersion(t, CreateTransitAddress)
 
-		return false
-	}
-
-	return true
+	return t
 }
 
-func (m *mempool) Value() []byte {
-	return m.val
+// NewTxDelTransitAddr ...
+func NewTxDelTransitAddr() TxAddress {
+	t := make([]byte, TxLength)
+	setTxVersion(t, DeleteTransitAddress)
+
+	return t
 }
 
-func (m *mempool) Close() {
-	if err := m.tx.Commit(m.ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
-		log.Println(err.Error())
-	}
+// Sender ...
+func (t TxAddress) Sender() Address {
+	return Address(t[1:35])
+}
+
+// SetSender ...
+func (t TxAddress) SetSender(a Address) {
+	copy(t[1:35], a)
+}
+
+// Address ...
+func (t TxAddress) Address() Address {
+	return Address(t[35:69])
+}
+
+// SetAddress ...
+func (t TxAddress) SetAddress(a Address) {
+	copy(t[35:69], a)
 }

@@ -18,59 +18,77 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package postgres
+package network
 
 import (
-	"context"
-	"errors"
-	"log"
-	"umid/umid"
-
-	"github.com/jackc/pgx/v4"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"strings"
+	"time"
 )
 
-type mempool struct {
-	ctx context.Context
-	tx  pgx.Tx
-	val []byte
-}
+const pullIntervalSec = 5
 
-// Mempool ...
-func (s *postgres) Mempool() (umid.IMempool, error) {
-	tx, err := s.conn.Begin(s.ctx)
-	if err != nil {
-		return nil, err
-	}
+func (net *Network) puller() {
+	net.wg.Add(1)
+	defer net.wg.Done()
 
-	_, err = tx.Exec(s.ctx, `declare cur no scroll cursor for select raw from mempool order by priority for update`)
-	if err != nil {
-		_ = tx.Rollback(s.ctx)
-
-		return nil, err
-	}
-
-	return &mempool{s.ctx, tx, make([]byte, 0, 150)}, nil
-}
-
-func (m *mempool) Next() bool {
-	row := m.tx.QueryRow(m.ctx, `fetch next from cur`)
-	if err := row.Scan(&m.val); err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
-			_ = m.tx.Rollback(m.ctx)
+	for {
+		select {
+		case <-net.ctx.Done():
+			return
+		default:
+			break
 		}
 
-		return false
-	}
+		if net.pull() {
+			continue
+		}
 
-	return true
+		time.Sleep(pullIntervalSec * time.Second)
+	}
 }
 
-func (m *mempool) Value() []byte {
-	return m.val
+func (net *Network) pull() (ok bool) {
+	lstBlkHeight, err := net.blockchain.LastBlockHeight()
+	if err != nil {
+		return
+	}
+
+	const tpl = `{"jsonrpc":"2.0","method":"listBlocks","params":{"height":%d},"id":"%d"}`
+	jsn := fmt.Sprintf(tpl, lstBlkHeight+1, time.Now().UnixNano())
+
+	req, _ := http.NewRequestWithContext(net.ctx, "POST", peer(), strings.NewReader(jsn))
+
+	resp, err := net.client.Do(req)
+	if err != nil {
+		return
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+
+	if err != nil {
+		return
+	}
+
+	return net.parseResponse(body)
 }
 
-func (m *mempool) Close() {
-	if err := m.tx.Commit(m.ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
-		log.Println(err.Error())
+func (net *Network) parseResponse(body []byte) (ok bool) {
+	res := &struct{ Result [][]byte }{}
+
+	if err := json.Unmarshal(body, res); err != nil {
+		return
 	}
+
+	for _, b := range res.Result {
+		if err := net.blockchain.AddBlock(b); err != nil {
+			return
+		}
+	}
+
+	return len(res.Result) > 0
 }

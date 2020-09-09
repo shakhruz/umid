@@ -22,22 +22,11 @@ package network
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
-	"strings"
 	"sync"
-	"time"
 	"umid/umid"
-)
-
-const (
-	pullIntervalSec = 5
-	pushIntervalSec = 5
 )
 
 // Network ...
@@ -60,102 +49,23 @@ func NewNetwork(ctx context.Context, wg *sync.WaitGroup, bc umid.IBlockchain) *N
 
 // Worker ...
 func (net *Network) Worker() {
-	net.wg.Add(1)
-	defer net.wg.Done()
-
-	push := time.NewTicker(pushIntervalSec * time.Second)
-	defer push.Stop()
-
-	go net.puller()
-
-	for {
-		select {
-		case <-net.ctx.Done():
-			return
-		case <-push.C:
-			break
-		}
+	if os.Getenv("PEER") != "none" {
+		go net.puller()
+		go net.pusher()
 	}
 }
 
-func (net *Network) puller() {
-	net.wg.Add(1)
-	defer net.wg.Done()
-
-	for {
-		select {
-		case <-net.ctx.Done():
-			return
-		default:
-			break
-		}
-
-		if net.pull() {
-			continue
-		}
-
-		time.Sleep(pullIntervalSec * time.Second)
-	}
-}
-
-func (net *Network) pull() (ok bool) {
-	lstBlkHeight, err := net.blockchain.LastBlockHeight()
-	if err != nil {
-		return
-	}
-
-	const tpl = `{"jsonrpc":"2.0","method":"listBlocks","params":{"height":%d},"id":"%d"}`
-	jsn := fmt.Sprintf(tpl, lstBlkHeight+1, time.Now().UnixNano())
-
-	host := "https://mainnet.umi.top"
-	if val, ok := os.LookupEnv("NETWORK"); ok && val == "testnet" {
-		host = "https://testnet.umi.top"
+func peer() (url string) {
+	switch os.Getenv("NETWORK") {
+	case "testnet":
+		url = "https://testnet.umi.top"
+	default:
+		url = "https://mainnet.umi.top"
 	}
 
 	if val, ok := os.LookupEnv("PEER"); ok {
-		host = val
+		url = val
 	}
 
-	req, _ := http.NewRequestWithContext(net.ctx, "POST", fmt.Sprintf("%s/json-rpc", host), strings.NewReader(jsn))
-
-	resp, err := net.client.Do(req)
-	if err != nil {
-		return
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-
-	if err := resp.Body.Close(); err != nil {
-		log.Println(err.Error())
-	}
-
-	if err != nil {
-		log.Println(err.Error())
-
-		return
-	}
-
-	rez := &struct{ Result []string }{}
-	if err := json.Unmarshal(body, rez); err != nil {
-		log.Println(err.Error())
-
-		return
-	}
-
-	for _, s := range rez.Result {
-		b, err := base64.StdEncoding.DecodeString(s)
-		if err != nil {
-			log.Println(err.Error())
-
-			return
-		}
-
-		if err := net.blockchain.AddBlock(b); err != nil {
-			log.Println(err.Error())
-
-			return
-		}
-	}
-
-	return len(rez.Result) > 0
+	return fmt.Sprintf("%s/json-rpc", url)
 }

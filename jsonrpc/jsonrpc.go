@@ -23,6 +23,7 @@ package jsonrpc
 import (
 	"encoding/json"
 	"log"
+	"umid/umid"
 )
 
 var (
@@ -33,12 +34,12 @@ var (
 )
 
 func (rpc *RPC) init() {
-	rpc.methods["getBalance"] = rpc.getBalance
-	rpc.methods["listStructures"] = rpc.listStructures
-	rpc.methods["getStructure"] = rpc.getStructure
-	rpc.methods["sendTransaction"] = rpc.sendTransaction
-	rpc.methods["listTransactions"] = rpc.listTransactions
-	rpc.methods["listBlocks"] = rpc.listBlocks
+	rpc.methods["getBalance"] = getBalance
+	rpc.methods["listStructures"] = listStructures
+	rpc.methods["getStructure"] = getStructure
+	rpc.methods["sendTransaction"] = sendTransaction
+	rpc.methods["listTransactions"] = listTransactions
+	rpc.methods["listBlocks"] = listBlocks
 }
 
 // Worker ...
@@ -129,14 +130,14 @@ func (rpc *RPC) parseBatch(data []byte) (b []byte) {
 
 func (rpc *RPC) callNotification(req request) {
 	if notification, ok := rpc.notifications[req.Method]; ok {
-		notification(req.Params)
+		notification(rpc.blockchain, req.Params)
 	}
 }
 
 func (rpc *RPC) callMethod(req request) (b []byte) {
 	method, ok := rpc.methods[req.Method]
 	if !ok {
-		method = func(_ json.RawMessage, res *response) {
+		method = func(_ umid.IBlockchain, _ json.RawMessage, res *response) {
 			res.Error = &respError{
 				Code:    -32601,
 				Message: "Method not found",
@@ -145,7 +146,7 @@ func (rpc *RPC) callMethod(req request) (b []byte) {
 	}
 
 	res := newResponse(req)
-	method(req.Params, res)
+	method(rpc.blockchain, req.Params, res)
 
 	var err error
 	if b, err = json.Marshal(res); err != nil {

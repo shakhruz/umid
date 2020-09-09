@@ -23,9 +23,10 @@ package jsonrpc
 import (
 	"encoding/json"
 	"log"
+	"umid/umid"
 )
 
-func (rpc *RPC) listTransactions(raw json.RawMessage, res *response) {
+func listTransactions(bc umid.IBlockchain, raw json.RawMessage, res *response) {
 	prm := new(struct {
 		Address string `json:"address"`
 	})
@@ -36,7 +37,7 @@ func (rpc *RPC) listTransactions(raw json.RawMessage, res *response) {
 		return
 	}
 
-	txs, err := rpc.blockchain.TransactionsByAddress(prm.Address)
+	txs, err := bc.TransactionsByAddress(prm.Address)
 	if err != nil {
 		log.Println(err.Error())
 

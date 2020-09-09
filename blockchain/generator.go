@@ -23,8 +23,6 @@ package blockchain
 import (
 	"log"
 	"time"
-
-	"github.com/umitop/libumi"
 )
 
 const newBlockDelaySec = 10
@@ -58,8 +56,6 @@ func (bc *Blockchain) generateNewBlock() {
 	// now := time.Now().Unix()
 
 	for m.Next() {
-		_ = (libumi.Transaction)(m.Value())
-
 		return
 	}
 }

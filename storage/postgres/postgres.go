@@ -56,3 +56,8 @@ func NewStorage(ctx context.Context, wg *sync.WaitGroup) umid.IStorage {
 
 	return &postgres{ctx, wg, conn}
 }
+
+func (s *postgres) Worker() {
+	go s.Migrate()
+	go s.BlockConfirmer()
+}

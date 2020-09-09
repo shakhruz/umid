@@ -44,13 +44,11 @@ func (bc *Blockchain) LastBlockHeight() (uint32, error) {
 
 // VerifyBlock ...
 func (bc *Blockchain) VerifyBlock(b []byte) error {
-	blk := (libumi.Block)(b)
-
-	if _, ok := bc.approvedKeys[string(blk.PublicKey())]; !ok {
+	if _, ok := bc.approvedKeys[string((libumi.Block)(b).PublicKey())]; !ok {
 		return errInvalidPubKey
 	}
 
-	return blk.Verify()
+	return libumi.VerifyBlock(b)
 }
 
 // ValidateBlock ...

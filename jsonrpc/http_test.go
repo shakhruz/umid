@@ -160,6 +160,7 @@ func TestHttpCORS(t *testing.T) {
 func TestHttpContext(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
+
 	rpc := jsonrpc.NewRPC(ctx, nil, nil)
 
 	req, _ := http.NewRequestWithContext(ctx, "POST", "/json-rpc", strings.NewReader(`{"jsonrpc":"2.0","method":"listStructures","id":1}`))

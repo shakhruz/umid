@@ -43,8 +43,7 @@ type IBlock interface {
 
 // IStorage ...
 type IStorage interface {
-	Migrate()
-	BlockConfirmer()
+	Worker()
 	Mempool() (IMempool, error)
 	Balance([]byte) (*Balance, error)
 	StructureByPrefix(string) (*Structure2, error)
@@ -66,6 +65,7 @@ type IBlockchain interface {
 	TransactionsByAddress(string) ([]*Transaction, error)
 	LastBlockHeight() (uint32, error)
 	BlocksByHeight(uint64) ([][]byte, error)
+	Mempool() (IMempool, error)
 }
 
 // IMempool ...
