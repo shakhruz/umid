@@ -21,30 +21,32 @@
 package blockchain
 
 import (
+	"context"
 	"log"
+	"sync"
 	"time"
 )
 
 const newBlockDelaySec = 10
 
 // Generator ...
-func (bc *Blockchain) Generator() {
-	bc.wg.Add(1)
-	defer bc.wg.Done()
+func (bc *Blockchain) Generator(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Add(1)
+	defer wg.Done()
 
 	for {
 		time.Sleep(newBlockDelaySec * time.Second)
 
 		select {
-		case <-bc.ctx.Done():
+		case <-ctx.Done():
 			return
 		default:
-			bc.generateNewBlock()
+			generateNewBlock(bc)
 		}
 	}
 }
 
-func (bc *Blockchain) generateNewBlock() {
+func generateNewBlock(bc *Blockchain) {
 	m, err := bc.storage.Mempool()
 	if err != nil {
 		log.Println(err.Error())

@@ -20,13 +20,16 @@
 
 package postgres
 
-import "umid/umid"
+import (
+	"context"
+	"umid/umid"
+)
 
 // Balance ...
 func (s *postgres) Balance(adr []byte) (*umid.Balance, error) {
 	bal := &umid.Balance{}
 
-	row := s.conn.QueryRow(s.ctx, `select * from get_address_balance($1)`, adr)
+	row := s.conn.QueryRow(context.Background(), `select * from get_address_balance($1)`, adr)
 
 	if err := row.Scan(&bal.Confirmed, &bal.Interest, &bal.Unconfirmed, &bal.Composite, &bal.Type); err != nil {
 		return nil, err

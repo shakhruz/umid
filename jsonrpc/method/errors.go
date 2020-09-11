@@ -18,33 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package jsonrpc
+package method
 
-import (
-	"encoding/json"
-	"umid/umid"
+import "encoding/json"
+
+const (
+	codeInvalidParams = -32602
 )
 
-func getStructure(bc umid.IBlockchain, raw json.RawMessage, res *response) {
-	prm := new(struct {
-		Prefix string `json:"prefix"`
+// Errors.
+var (
+	ErrInvalidParams = []byte(`{"code":-32602,"message":"Invalid params"}`)
+	ErrInternalError = []byte(`{"code":-32603,"message":"Internal error"}`)
+)
+
+func marshalError(code int, message string) json.RawMessage {
+	jsn, _ := json.Marshal(struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	}{
+		Code:    code,
+		Message: message,
 	})
 
-	if err := json.Unmarshal(raw, prm); err != nil || len(prm.Prefix) != 3 {
-		res.Error = errInvalidParams
-
-		return
-	}
-
-	str, err := bc.StructureByPrefix(prm.Prefix)
-	if err != nil {
-		res.Error = &respError{
-			Code:    -32603,
-			Message: "Internal error",
-		}
-
-		return
-	}
-
-	res.Result = str
+	return jsn
 }

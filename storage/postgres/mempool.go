@@ -30,33 +30,38 @@ import (
 )
 
 type mempool struct {
-	ctx context.Context
 	tx  pgx.Tx
 	val []byte
 }
 
 // Mempool ...
-func (s *postgres) Mempool() (umid.IMempool, error) {
-	tx, err := s.conn.Begin(s.ctx)
+func (s *postgres) Mempool() (mem umid.IMempool, err error) {
+	ctx := context.Background()
+
+	tx, err := s.conn.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = tx.Exec(s.ctx, `declare cur no scroll cursor for select raw from mempool order by priority for update`)
+	_, err = tx.Exec(ctx, `declare cur no scroll cursor for select raw from mempool order by priority for update`)
 	if err != nil {
-		_ = tx.Rollback(s.ctx)
+		_ = tx.Rollback(ctx)
 
 		return nil, err
 	}
 
-	return &mempool{s.ctx, tx, make([]byte, 0, 150)}, nil
+	mem = &mempool{tx, []byte{}}
+
+	return mem, nil
 }
 
 func (m *mempool) Next() bool {
-	row := m.tx.QueryRow(m.ctx, `fetch next from cur`)
+	ctx := context.Background()
+	row := m.tx.QueryRow(ctx, `fetch next from cur`)
+
 	if err := row.Scan(&m.val); err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
-			_ = m.tx.Rollback(m.ctx)
+			_ = m.tx.Rollback(ctx)
 		}
 
 		return false
@@ -70,7 +75,7 @@ func (m *mempool) Value() []byte {
 }
 
 func (m *mempool) Close() {
-	if err := m.tx.Commit(m.ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+	if err := m.tx.Commit(context.Background()); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 		log.Println(err.Error())
 	}
 }

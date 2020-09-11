@@ -24,13 +24,34 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 const wsQueueLen = 16
+
+// Client ...
+type Client struct {
+	ctx    context.Context
+	cancel func()
+	conn   *websocket.Conn
+	res    chan []byte
+	req    chan<- rawRequest
+}
+
+// NewClient ...
+func NewClient(conn *websocket.Conn, req chan<- rawRequest) *Client {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	return &Client{
+		ctx:    ctx,
+		cancel: cancel,
+		conn:   conn,
+		res:    make(chan []byte, wsQueueLen),
+		req:    req,
+	}
+}
 
 // WebSocket ...
 func (rpc *RPC) WebSocket(w http.ResponseWriter, r *http.Request) {
@@ -39,60 +60,48 @@ func (rpc *RPC) WebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	res := make(chan []byte, wsQueueLen)
-
-	go rpc.reader(ctx, conn, res, cancel)
-	go rpc.writer(ctx, conn, res)
+	cl := NewClient(conn, rpc.queue)
+	go cl.reader()
+	go cl.writer()
 }
 
-func (rpc *RPC) reader(ctx context.Context, conn *websocket.Conn, res chan<- []byte, done func()) {
-	rpc.wg.Add(1)
-	defer rpc.wg.Done()
-
+func (c *Client) reader() {
 	for {
-		t, req, err := conn.ReadMessage()
+		msgType, msg, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
 			}
 
-			if err = conn.Close(); err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
-				log.Println("reader conn.Close()", err.Error())
-			}
-
-			done()
+			_ = c.conn.Close()
+			c.cancel()
 
 			break
 		}
 
-		if t == websocket.TextMessage {
-			rpc.queue <- rawRequest{ctx, req, res}
+		if msgType == websocket.TextMessage {
+			c.req <- rawRequest{c.ctx, msg, c.res}
 		}
 	}
 }
 
-func (rpc *RPC) writer(ctx context.Context, conn *websocket.Conn, res <-chan []byte) {
-	rpc.wg.Add(1)
-	defer rpc.wg.Done()
-
+func (c *Client) writer() {
 	for {
 		select {
-		case data := <-res:
-			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+		case data := <-c.res:
+			err := c.conn.WriteMessage(websocket.TextMessage, data)
+			if err != nil {
 				log.Println(err.Error())
-			}
-		case <-ctx.Done():
-			return
-		case <-rpc.ctx.Done():
-			data := websocket.FormatCloseMessage(websocket.CloseServiceRestart, "")
-			if err := conn.WriteControl(websocket.CloseMessage, data, time.Now().Add(time.Second)); err != nil {
-				log.Println(err.Error())
-			}
 
-			if err := conn.Close(); err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
-				log.Println("writer conn.Close()", err.Error())
+				_ = c.conn.Close()
+				c.cancel()
+
+				return
 			}
+		case <-c.ctx.Done():
+			data := websocket.FormatCloseMessage(websocket.CloseServiceRestart, "")
+			_ = c.conn.WriteControl(websocket.CloseMessage, data, time.Now().Add(time.Second))
+			_ = c.conn.Close()
 
 			return
 		}

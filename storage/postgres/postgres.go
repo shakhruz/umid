@@ -35,13 +35,11 @@ import (
 var ErrNotFound = errors.New("not found")
 
 type postgres struct {
-	ctx  context.Context
-	wg   *sync.WaitGroup
 	conn *pgxpool.Pool
 }
 
 // NewStorage ...
-func NewStorage(ctx context.Context, wg *sync.WaitGroup) umid.IStorage {
+func NewStorage() umid.IStorage {
 	cfg, err := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatal(err.Error())
@@ -49,15 +47,15 @@ func NewStorage(ctx context.Context, wg *sync.WaitGroup) umid.IStorage {
 
 	cfg.LazyConnect = true
 
-	conn, err := pgxpool.ConnectConfig(ctx, cfg)
+	conn, err := pgxpool.ConnectConfig(context.Background(), cfg)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	return &postgres{ctx, wg, conn}
+	return &postgres{conn}
 }
 
-func (s *postgres) Worker() {
-	go s.Migrate()
-	go s.BlockConfirmer()
+func (s *postgres) Worker(ctx context.Context, wg *sync.WaitGroup) {
+	go Migrate(ctx, wg, s.conn)
+	go BlockConfirmer(ctx, wg, s.conn)
 }

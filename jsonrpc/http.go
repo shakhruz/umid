@@ -22,6 +22,7 @@ package jsonrpc
 
 import (
 	"compress/gzip"
+	"context"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -29,43 +30,15 @@ import (
 
 const (
 	httpMaxUploadSize  = 10 * 1024 * 1024
-	httpMaxRequestTime = 10
+	httpMaxRequestTime = 5
 )
 
 // HTTP ...
 func (rpc *RPC) HTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	setCORSHeaders(w, r)
-
-	if !validateRequest(w, r) {
-		return
-	}
-
-	if r.Body == nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write(errInvalidRequest)
-
-		return
-	}
-
-	rdr := http.MaxBytesReader(w, r.Body, httpMaxUploadSize)
-
-	if r.Header.Get("Content-Encoding") == "gzip" {
-		rdr, _ = gzip.NewReader(rdr)
-	}
-
-	req, err := ioutil.ReadAll(rdr)
+	req, err := readAllBody(w, r)
 	if err != nil {
-		code, msg := http.StatusInternalServerError, errInternalError
-
-		if err.Error() == "http: request body too large" {
-			code, msg = http.StatusRequestEntityTooLarge, errInvalidRequest
-		}
-
-		w.WriteHeader(code)
-		_, _ = w.Write(msg)
-
 		return
 	}
 
@@ -82,62 +55,99 @@ func (rpc *RPC) HTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	precessResponse(ctx, res, w)
+}
+
+func precessResponse(ctx context.Context, res <-chan []byte, w http.ResponseWriter) {
 	select {
 	case b := <-res:
-		if b == nil {
+		writeResponse(b, w)
+	case <-time.After(httpMaxRequestTime * time.Second):
+		w.WriteHeader(http.StatusRequestTimeout)
+	case <-ctx.Done():
+		break
+	}
+}
+
+func writeResponse(b []byte, w http.ResponseWriter) {
+	if b == nil {
+		w.Header().Del("Content-Type")
+		w.WriteHeader(http.StatusNoContent)
+
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(b)
+}
+
+func readAllBody(w http.ResponseWriter, r *http.Request) (b []byte, err error) {
+	rdr := http.MaxBytesReader(w, r.Body, httpMaxUploadSize)
+
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		rdr, err = gzip.NewReader(rdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	b, err = ioutil.ReadAll(rdr)
+	if err != nil {
+		code, msg := http.StatusInternalServerError, errInternalError
+
+		if err.Error() == "http: request body too large" {
+			code, msg = http.StatusRequestEntityTooLarge, errInvalidRequest
+		}
+
+		w.WriteHeader(code)
+		_, _ = w.Write(msg)
+
+		return nil, err
+	}
+
+	return b, err
+}
+
+// CORS ...
+func CORS(next func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// CORS preflighted request
+		if r.Method == "OPTIONS" {
 			w.Header().Del("Content-Type")
 			w.WriteHeader(http.StatusNoContent)
 
 			return
 		}
 
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(b)
-	case <-time.After(httpMaxRequestTime * time.Second):
-		w.WriteHeader(http.StatusRequestTimeout)
-	case <-ctx.Done():
-		return
-	}
-}
+		// All CORS requests must have an Origin header.
+		if r.Header.Get("Origin") != "" {
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Allow-Methods", "POST,OPTIONS")
+			w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+			w.Header().Set("Access-Control-Max-Age", "86400")
+			w.Header().Set("Vary", "Origin")
 
-func validateRequest(w http.ResponseWriter, r *http.Request) bool {
-	// CORS preflighted request
-	if r.Method == "OPTIONS" {
-		w.Header().Del("Content-Type")
-		w.WriteHeader(http.StatusNoContent)
-
-		return false
-	}
-
-	if r.Method != "POST" {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		_, _ = w.Write(errInvalidRequest)
-
-		return false
-	}
-
-	// if r.Header.Get("Content-Type") != "application/json" {
-	//	w.WriteHeader(http.StatusUnsupportedMediaType)
-	//	_, _ = w.Write(errInvalidRequest)
-	//
-	//	return false
-	// }
-
-	return true
-}
-
-func setCORSHeaders(w http.ResponseWriter, r *http.Request) {
-	// All CORS requests must have an Origin header.
-	if r.Header.Get("Origin") != "" {
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		w.Header().Set("Access-Control-Allow-Methods", "POST,OPTIONS")
-		w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
-		w.Header().Set("Access-Control-Max-Age", "86400")
-		w.Header().Set("Vary", "Origin")
-
-		if r.Header.Get("Access-Control-Request-Headers") != "" {
-			w.Header().Set("Access-Control-Allow-Headers", r.Header.Get("Access-Control-Request-Headers"))
+			if r.Header.Get("Access-Control-Request-Headers") != "" {
+				w.Header().Set("Access-Control-Allow-Headers", r.Header.Get("Access-Control-Request-Headers"))
+			}
 		}
+
+		next(w, r)
+	}
+}
+
+// Filter ...
+func Filter(next func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_, _ = w.Write(errInvalidRequest)
+
+			return
+		}
+
+		next(w, r)
 	}
 }

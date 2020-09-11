@@ -21,6 +21,7 @@
 package postgres
 
 import (
+	"context"
 	"errors"
 	"umid/umid"
 
@@ -28,7 +29,7 @@ import (
 )
 
 func (s *postgres) Structures() ([]*umid.Structure2, error) {
-	rows, err := s.conn.Query(s.ctx, `select * from get_structures()`)
+	rows, err := s.conn.Query(context.Background(), `select * from get_structures()`)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +68,7 @@ func (s *postgres) Structures() ([]*umid.Structure2, error) {
 }
 
 func (s *postgres) StructureByPrefix(p string) (*umid.Structure2, error) {
-	row := s.conn.QueryRow(s.ctx, `select * from get_structures_by_prefix($1)`, p)
+	row := s.conn.QueryRow(context.Background(), `select * from get_structures_by_prefix($1)`, p)
 
 	st := &umid.Structure2{}
 

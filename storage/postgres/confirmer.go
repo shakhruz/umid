@@ -21,36 +21,45 @@
 package postgres
 
 import (
+	"context"
 	"log"
+	"sync"
 	"time"
+
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
-func (s *postgres) BlockConfirmer() {
-	s.wg.Add(1)
-	defer s.wg.Done()
+// BlockConfirmer ...
+func BlockConfirmer(ctx context.Context, wg *sync.WaitGroup, conn *pgxpool.Pool) {
+	wg.Add(1)
+	defer wg.Done()
 
 	for {
 		select {
-		case <-s.ctx.Done():
+		case <-ctx.Done():
 			return
-		default:
-			break
+		case <-time.After(time.Second):
+			confirm(ctx, conn)
 		}
+	}
+}
 
-		var n int
+func confirm(ctx context.Context, conn *pgxpool.Pool) {
+	var blkHeight int
 
-		if err := s.conn.QueryRow(s.ctx, `select coalesce(confirm_next_block(), 0)`).Scan(&n); err != nil {
-			log.Println(err.Error())
-		}
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		break
+	}
 
-		if n > 0 {
-			if n%1000 == 0 {
-				log.Printf("block %d confirmed", n)
-			}
+	err := conn.QueryRow(context.Background(), `select coalesce(confirm_next_block(), 0)`).Scan(&blkHeight)
+	if err != nil {
+		log.Println(err.Error())
+	}
 
-			continue
-		}
-
-		time.Sleep(time.Second)
+	if blkHeight != 0 {
+		confirm(ctx, conn)
 	}
 }

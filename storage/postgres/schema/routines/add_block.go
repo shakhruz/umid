@@ -43,6 +43,7 @@ declare
     --
     lst_blk_hash         bytea;
     lst_blk_height       integer;
+    lst_blk_time         timestamptz;
 begin
     select hash, version, prev_block_hash, merkle_root_hash, created_at, tx_count, public_key
     into blk_hash, blk_version, blk_prv_hash, blk_merkle, blk_time, blk_tx_cnt, blk_pubkey
@@ -64,7 +65,13 @@ begin
         blk_height = 1;
     else
         -- смотрим на последний добавленный блок
-        select hash, height into lst_blk_hash, lst_blk_height from block order by height desc limit 1;
+        select hash, height, created_at into lst_blk_hash, lst_blk_height, lst_blk_time
+        from block order by height desc limit 1;
+
+        if lst_blk_time > blk_time then -- новый блок создан ранее чем последний блок в цеопчке
+			-- не добавляем блок
+            return null;
+		end if;
 
         if blk_prv_hash = lst_blk_hash then -- новый блок ссылается на последний блок в цепочке
             blk_height := lst_blk_height + 1;

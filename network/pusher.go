@@ -23,11 +23,15 @@ package network
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"time"
+	"umid/umid"
 )
 
 const (
@@ -35,76 +39,68 @@ const (
 	pushLimitTxs    = 10_000
 )
 
-func (net *Network) pusher() {
-	net.wg.Add(1)
-	defer net.wg.Done()
+func (net *Network) pusher(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Add(1)
+	defer wg.Done()
 
 	for {
 		select {
-		case <-net.ctx.Done():
+		case <-ctx.Done():
 			return
-		default:
-			break
+		case <-time.After(pushIntervalSec * time.Second):
+			push(ctx, net.client, net.blockchain)
 		}
-
-		net.push()
-		time.Sleep(pushIntervalSec * time.Second)
 	}
 }
 
-func (net *Network) push() {
-	mem, err := net.blockchain.Mempool()
-	if err != nil {
-		return
-	}
-
-	type params struct {
-		Base64 []byte `json:"base64"`
-	}
-
-	type request struct {
-		JSONRPC string `json:"jsonrpc"`
-		Method  string `json:"method"`
-		Params  params `json:"params"`
-		ID      int64  `json:"id"`
-	}
-
-	txs := make([]request, 0)
-
-	for mem.Next() {
-		if len(txs) > pushLimitTxs {
-			break
-		}
-
-		txs = append(txs, request{
-			JSONRPC: "2.0",
-			Method:  "sendTransaction",
-			Params:  params{mem.Value()},
-			ID:      time.Now().UnixNano(),
-		})
-	}
-
-	mem.Close()
-
+func push(ctx context.Context, client *http.Client, bc umid.IBlockchain) {
+	txs := prepareRequest(bc)
 	if len(txs) == 0 {
 		return
 	}
 
+	jsn, _ := json.Marshal(txs)
+
 	buf := new(bytes.Buffer)
 	gz := gzip.NewWriter(buf)
-
-	jsn, _ := json.Marshal(txs)
 	_, _ = gz.Write(jsn)
 	_ = gz.Close()
 
-	req, _ := http.NewRequestWithContext(net.ctx, "POST", peer(), buf)
+	req, _ := http.NewRequestWithContext(ctx, "POST", peer(), buf)
 	req.Header.Set("Content-Encoding", "gzip")
 
-	resp, err := net.client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return
 	}
 
 	_, _ = io.Copy(ioutil.Discard, resp.Body)
 	_ = resp.Body.Close()
+}
+
+func prepareRequest(bc umid.IBlockchain) []json.RawMessage {
+	mem, err := bc.Mempool()
+	if err != nil {
+		return nil
+	}
+
+	defer mem.Close()
+
+	buf := new(bytes.Buffer)
+	txs := make([]json.RawMessage, 0)
+
+	for mem.Next() {
+		if len(txs) > pushLimitTxs {
+			break
+		}
+
+		buf.Reset()
+		buf.WriteString(`{"jsonrpc":"2.0","method":"sendTransaction","params":{"base64":"`)
+		buf.WriteString(base64.StdEncoding.EncodeToString(mem.Value()))
+		buf.WriteString(`"},"id":1}`)
+
+		txs = append(txs, buf.Bytes())
+	}
+
+	return txs
 }

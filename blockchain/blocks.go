@@ -22,11 +22,12 @@ package blockchain
 
 import (
 	"errors"
+	"log"
 
 	"github.com/umitop/libumi"
 )
 
-var errInvalidPubKey = errors.New("invalid key")
+var errInvalidPubKey = errors.New("block has invalid public key")
 
 // AddBlock ...
 func (bc *Blockchain) AddBlock(b []byte) error {
@@ -45,6 +46,8 @@ func (bc *Blockchain) LastBlockHeight() (uint32, error) {
 // VerifyBlock ...
 func (bc *Blockchain) VerifyBlock(b []byte) error {
 	if _, ok := bc.approvedKeys[string((libumi.Block)(b).PublicKey())]; !ok {
+		log.Printf("block %X has invalid public key\n", (libumi.Block)(b).Hash())
+
 		return errInvalidPubKey
 	}
 

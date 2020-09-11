@@ -68,6 +68,33 @@ build:
   only:
     - tags
 
+test:
+  stage: test
+  image: golang:1.15
+  before_script:
+    - curl -sSL https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+    - chmod +x ./cc-test-reporter
+    - ./cc-test-reporter before-build
+  script:
+    - go test ./... -coverprofile=c.out -covermode count
+  after_script:
+    - sed -i 's/github.com\/umitop\/libumi\///g' c.out
+    - ./cc-test-reporter after-build
+    - go get github.com/jstemmer/go-junit-report
+    - go test -v 2>&1 | go-junit-report -set-exit-code > junit.xml
+    - go get github.com/t-yuki/gocover-cobertura
+    - gocover-cobertura < c.out > cobertura.xml
+    - bash <(curl -sSL https://coverage.codacy.com/get.sh)
+  coverage: '/coverage: \d+.\d+% of statements/'
+  artifacts:
+    reports:
+      cobertura: cobertura.xml
+      junit: junit.xml
+  only:
+    - master
+  except:
+    - tags
+
 revive:
   stage: test
   image: golang:1.15

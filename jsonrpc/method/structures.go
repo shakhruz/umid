@@ -18,23 +18,67 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package jsonrpc
+package method
 
 import (
 	"encoding/json"
 	"umid/umid"
 )
 
-func listStructures(bc umid.IBlockchain, _ json.RawMessage, res *response) {
-	str, err := bc.Structures()
-	if err != nil {
-		res.Error = &respError{
-			Code:    -32603,
-			Message: "Internal error",
-		}
+// GetStructure ...
+type GetStructure struct{}
 
-		return
+// Name ...
+func (l GetStructure) Name() string {
+	return "getStructure"
+}
+
+// Process ...
+func (l GetStructure) Process(bc umid.IBlockchain, params json.RawMessage) (result json.RawMessage, error json.RawMessage) {
+	prm := new(struct {
+		Prefix string `json:"prefix"`
+	})
+
+	if err := json.Unmarshal(params, prm); err != nil || len(prm.Prefix) != 3 {
+		return nil, ErrInvalidParams
 	}
 
-	res.Result = str
+	s, err := bc.StructureByPrefix(prm.Prefix)
+	if err != nil {
+		return nil, ErrInternalError
+	}
+
+	return marshalStructure(s), nil
+}
+
+// ListStructures ...
+type ListStructures struct{}
+
+// Name ...
+func (ListStructures) Name() string {
+	return "listStructures"
+}
+
+// Process ...
+func (ListStructures) Process(bc umid.IBlockchain, _ json.RawMessage) (result json.RawMessage, error json.RawMessage) {
+	s, err := bc.Structures()
+	if err != nil {
+		return nil, ErrInternalError
+	}
+
+	arr := make([]json.RawMessage, len(s))
+
+	for i, v := range s {
+		arr[i] = marshalStructure(v)
+	}
+
+	result, _ = json.Marshal(arr)
+
+	return
+}
+
+func marshalStructure(v interface{}) json.RawMessage {
+	jsn, _ := json.Marshal(v)
+
+	return jsn
 }

@@ -21,11 +21,12 @@
 package postgres
 
 import (
+	"context"
 	"log"
 )
 
 func (s *postgres) LastBlockHeight() (n uint32, err error) {
-	row := s.conn.QueryRow(s.ctx, `select coalesce(max(height), 0) from block`)
+	row := s.conn.QueryRow(context.Background(), `select coalesce(max(height), 0) from block`)
 	err = row.Scan(&n)
 
 	return
@@ -33,7 +34,7 @@ func (s *postgres) LastBlockHeight() (n uint32, err error) {
 
 func (s *postgres) AddBlock(b []byte) error {
 	var n int64
-	err := s.conn.QueryRow(s.ctx, `select coalesce(add_block($1), 0)`, b).Scan(&n)
+	err := s.conn.QueryRow(context.Background(), `select coalesce(add_block($1), 0)`, b).Scan(&n)
 
 	if n != 0 {
 		if n%1000 == 0 {
@@ -47,7 +48,7 @@ func (s *postgres) AddBlock(b []byte) error {
 func (s *postgres) BlocksByHeight(n uint64) ([][]byte, error) {
 	const sql = `select lo_get(height) from block where height >= $1 and confirmed is true order by height limit 5000`
 
-	rows, err := s.conn.Query(s.ctx, sql, n)
+	rows, err := s.conn.Query(context.Background(), sql, n)
 	if err != nil {
 		return nil, err
 	}

@@ -21,17 +21,18 @@
 package postgres
 
 import (
+	"context"
 	"umid/umid"
 )
 
 func (s *postgres) AddTransaction(b []byte) error {
-	_, err := s.conn.Exec(s.ctx, `select add_transaction($1)`, b)
+	_, err := s.conn.Exec(context.Background(), `select add_transaction($1)`, b)
 
 	return err
 }
 
 func (s *postgres) TransactionsByAddress(adr []byte) (txs []*umid.Transaction2, err error) {
-	rows, err := s.conn.Query(s.ctx, `select * from get_address_transactions($1, $2)`, adr, 100)
+	rows, err := s.conn.Query(context.Background(), `select * from get_address_transactions($1, $2)`, adr, 100)
 	if err != nil {
 		return nil, err
 	}

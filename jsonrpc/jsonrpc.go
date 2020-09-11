@@ -21,67 +21,121 @@
 package jsonrpc
 
 import (
+	"context"
 	"encoding/json"
-	"log"
+	"sync"
+	"umid/jsonrpc/method"
 	"umid/umid"
+
+	"github.com/gorilla/websocket"
+)
+
+const (
+	workerQueueLen = 1024
 )
 
 var (
 	errParseError     = []byte(`{"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"},"id":null}`)
 	errInvalidRequest = []byte(`{"jsonrpc":"2.0","error":{"code":-32600,"message":"Invalid Request"},"id":null}`)
 	errInternalError  = []byte(`{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":null}`)
-	errInvalidParams  = &respError{Code: -32602, Message: "Invalid params"}
 )
 
-func (rpc *RPC) init() {
-	rpc.methods["getBalance"] = getBalance
-	rpc.methods["listStructures"] = listStructures
-	rpc.methods["getStructure"] = getStructure
-	rpc.methods["sendTransaction"] = sendTransaction
-	rpc.methods["listTransactions"] = listTransactions
-	rpc.methods["listBlocks"] = listBlocks
+type rawRequest struct {
+	ctx context.Context
+	req []byte
+	res chan<- []byte
+}
+
+type request struct {
+	JSONRPC string          `json:"jsonrpc"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params,omitempty"`
+	ID      json.RawMessage `json:"id,omitempty"`
+}
+
+type response struct {
+	JSONRPC string          `json:"jsonrpc"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   json.RawMessage `json:"error,omitempty"`
+	ID      json.RawMessage `json:"id"`
+}
+
+// Method ...
+type Method func(bc umid.IBlockchain, params json.RawMessage) (result json.RawMessage, error json.RawMessage)
+
+// RPC ...
+type RPC struct {
+	blockchain    umid.IBlockchain
+	upgrader      websocket.Upgrader
+	queue         chan rawRequest
+	methods       map[string]Method
+	notifications map[string]func(umid.IBlockchain, json.RawMessage)
+}
+
+// NewRPC ...
+func NewRPC() *RPC {
+	rpc := &RPC{
+		upgrader:      websocket.Upgrader{},
+		queue:         make(chan rawRequest, workerQueueLen),
+		methods:       make(map[string]Method),
+		notifications: make(map[string]func(umid.IBlockchain, json.RawMessage)),
+	}
+
+	rpc.methods["getBalance"] = method.GetBalance{}.Process
+	rpc.methods["listStructures"] = method.ListStructures{}.Process
+	rpc.methods["getStructure"] = method.GetStructure{}.Process
+	rpc.methods["sendTransaction"] = method.SendTx{}.Process
+	rpc.methods["listTransactions"] = method.ListTxs{}.Process
+	rpc.methods["listBlocks"] = method.ListBlocks{}.Process
+
+	return rpc
+}
+
+// SetBlockchain ...
+func (rpc *RPC) SetBlockchain(bc umid.IBlockchain) *RPC {
+	rpc.blockchain = bc
+
+	return rpc
 }
 
 // Worker ...
-func (rpc *RPC) Worker() {
-	rpc.wg.Add(1)
-	defer rpc.wg.Done()
-
-	rpc.init()
+func (rpc *RPC) Worker(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Add(1)
+	defer wg.Done()
 
 	for {
 		select {
-		case <-rpc.ctx.Done():
+		case <-ctx.Done():
 			return
 		case q := <-rpc.queue:
-			select {
-			case <-q.ctx.Done():
-				continue
-			default:
-				break
-			}
-
-			if q.req == nil || len(q.req) == 0 {
-				q.res <- errInvalidRequest
-
-				continue
-			}
-
-			if string(q.req[0]) == "[" {
-				q.res <- rpc.parseBatch(q.req)
-
-				continue
-			}
-
-			q.res <- rpc.parseSingle(q.req)
+			q.res <- processRequest(q.ctx, q.req, rpc)
 		}
 	}
 }
 
-func (rpc *RPC) parseSingle(data []byte) []byte {
-	var req request
+func processRequest(ctx context.Context, req json.RawMessage, rpc *RPC) (res json.RawMessage) {
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
+		break
+	}
 
-	if err := json.Unmarshal(data, &req); err != nil {
+	if len(req) == 0 {
+		return errInvalidRequest
+	}
+
+	if string(req[0]) == "[" {
+		return processBatch(req, rpc)
+	}
+
+	return processSingle(req, rpc)
+}
+
+func processSingle(data json.RawMessage, rpc *RPC) []byte {
+	req := new(request)
+
+	if err := json.Unmarshal(data, req); err != nil {
 		return errParseError
 	}
 
@@ -90,68 +144,77 @@ func (rpc *RPC) parseSingle(data []byte) []byte {
 	}
 
 	if req.ID == nil {
-		rpc.callNotification(req)
-
 		return nil
 	}
 
-	return rpc.callMethod(req)
+	res, err := callMethod(req.Method, req.Params, rpc)
+
+	return marshalResponse(res, err, req.ID)
 }
 
-func (rpc *RPC) parseBatch(data []byte) (b []byte) {
-	var batch []json.RawMessage
+func processBatch(req json.RawMessage, rpc *RPC) []byte {
+	var requests []json.RawMessage
 
-	if err := json.Unmarshal(data, &batch); err != nil {
+	if err := json.Unmarshal(req, &requests); err != nil {
 		return errParseError
 	}
 
-	if len(batch) == 0 {
+	if len(requests) == 0 {
 		return errInvalidRequest
 	}
 
-	res := make([]json.RawMessage, 0, len(batch))
+	responses := processBatchRequests(requests, rpc)
 
-	for _, raw := range batch {
-		r := rpc.parseSingle(raw)
-		if r != nil {
-			res = append(res, r)
-		}
+	if len(responses) == 0 {
+		return nil
 	}
 
-	if len(res) != 0 {
-		var err error
-		if b, err = json.Marshal(res); err != nil {
-			b = errInternalError
-		}
-	}
+	b, _ := json.Marshal(responses)
 
 	return b
 }
 
-func (rpc *RPC) callNotification(req request) {
-	if notification, ok := rpc.notifications[req.Method]; ok {
-		notification(rpc.blockchain, req.Params)
-	}
-}
+func processBatchRequests(requests []json.RawMessage, rpc *RPC) []json.RawMessage {
+	res := make([]json.RawMessage, 0, len(requests))
 
-func (rpc *RPC) callMethod(req request) (b []byte) {
-	method, ok := rpc.methods[req.Method]
-	if !ok {
-		method = func(_ umid.IBlockchain, _ json.RawMessage, res *response) {
-			res.Error = &respError{
-				Code:    -32601,
-				Message: "Method not found",
-			}
+	for _, request := range requests {
+		if r := processSingle(request, rpc); r != nil {
+			res = append(res, r)
 		}
 	}
 
-	res := newResponse(req)
-	method(rpc.blockchain, req.Params, res)
+	return res
+}
 
-	var err error
-	if b, err = json.Marshal(res); err != nil {
-		log.Println(err.Error())
+func callMethod(name string, prm json.RawMessage, rpc *RPC) (result json.RawMessage, error json.RawMessage) {
+	fn, ok := rpc.methods[name]
+	if !ok {
+		fn = func(_ umid.IBlockchain, _ json.RawMessage) (_ json.RawMessage, err json.RawMessage) {
+			err, _ = json.Marshal(struct {
+				Code    int    `json:"code"`
+				Message string `json:"message"`
+			}{
+				Code:    -32601,
+				Message: "Method not found",
+			})
 
+			return nil, err
+		}
+	}
+
+	return fn(rpc.blockchain, prm)
+}
+
+func marshalResponse(result json.RawMessage, error json.RawMessage, id json.RawMessage) []byte {
+	res := response{
+		JSONRPC: "2.0",
+		Result:  result,
+		Error:   error,
+		ID:      id,
+	}
+
+	b, err := json.Marshal(res)
+	if err != nil {
 		b = errInternalError
 	}
 

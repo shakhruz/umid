@@ -28,7 +28,7 @@ import (
 	"github.com/umitop/libumi"
 )
 
-var errTxInvalidValue = errors.New("transaction: invalid value")
+var errTxInvalidValue = errors.New("invalid value")
 
 // AddTransaction ...
 func (bc *Blockchain) AddTransaction(b []byte) error {

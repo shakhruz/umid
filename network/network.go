@@ -22,7 +22,6 @@ package network
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"sync"
@@ -31,41 +30,30 @@ import (
 
 // Network ...
 type Network struct {
-	ctx        context.Context
-	wg         *sync.WaitGroup
 	blockchain umid.IBlockchain
 	client     *http.Client
 }
 
 // NewNetwork ...
-func NewNetwork(ctx context.Context, wg *sync.WaitGroup, bc umid.IBlockchain) *Network {
+func NewNetwork() *Network {
 	return &Network{
-		ctx:        ctx,
-		wg:         wg,
-		blockchain: bc,
-		client:     newClient(),
+		client: newClient(),
 	}
+}
+
+// SetBlockchain ...
+func (net *Network) SetBlockchain(bc umid.IBlockchain) *Network {
+	net.blockchain = bc
+
+	return net
 }
 
 // Worker ...
-func (net *Network) Worker() {
-	if os.Getenv("PEER") != "none" {
-		go net.puller()
-		go net.pusher()
-	}
-}
-
-func peer() (url string) {
-	switch os.Getenv("NETWORK") {
-	case "testnet":
-		url = "https://testnet.umi.top"
-	default:
-		url = "https://mainnet.umi.top"
+func (net *Network) Worker(ctx context.Context, wg *sync.WaitGroup) {
+	if os.Getenv("PEER") == "none" {
+		return
 	}
 
-	if val, ok := os.LookupEnv("PEER"); ok {
-		url = val
-	}
-
-	return fmt.Sprintf("%s/json-rpc", url)
+	go net.puller(ctx, wg)
+	go net.pusher(ctx, wg)
 }

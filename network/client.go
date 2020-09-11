@@ -22,8 +22,10 @@ package network
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	"net/http/cookiejar"
+	"os"
 	"time"
 )
 
@@ -35,20 +37,19 @@ type transport struct {
 	tr http.RoundTripper
 }
 
-func newTransport() http.RoundTripper {
-	tr := http.DefaultTransport
-	// tr.(*http.Transport).ForceAttemptHTTP2 = false
-	tr.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec
-
-	return &transport{tr: tr}
-}
-
 func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Set("User-Agent", "UMId/0.0.1")
 	req.Header.Set("Content-Type", "application/json")
-	// req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Connection", "keep-alive")
 
 	return t.tr.RoundTrip(req)
+}
+
+func newTransport() http.RoundTripper {
+	tr := http.DefaultTransport
+	tr.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec
+
+	return &transport{tr: tr}
 }
 
 func newClient() *http.Client {
@@ -61,4 +62,19 @@ func newClient() *http.Client {
 	}
 
 	return client
+}
+
+func peer() (url string) {
+	switch os.Getenv("NETWORK") {
+	case "testnet":
+		url = "https://testnet.umi.top"
+	default:
+		url = "https://mainnet.umi.top"
+	}
+
+	if val, ok := os.LookupEnv("PEER"); ok {
+		url = val
+	}
+
+	return fmt.Sprintf("%s/json-rpc", url)
 }

@@ -18,33 +18,41 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package jsonrpc
+package method
 
 import (
 	"encoding/json"
 	"umid/umid"
 )
 
-func listBlocks(bc umid.IBlockchain, raw json.RawMessage, res *response) {
+// GetBalance ...
+type GetBalance struct{}
+
+// Name ...
+func (GetBalance) Name() string {
+	return "getBalance"
+}
+
+// Process ...
+func (GetBalance) Process(bc umid.IBlockchain, params json.RawMessage) (result json.RawMessage, error json.RawMessage) {
 	prm := new(struct {
-		Height uint64 `json:"height"`
+		Address string `json:"address"`
 	})
 
-	if err := json.Unmarshal(raw, prm); err != nil {
-		res.Error = errInvalidParams
-
-		return
+	if err := json.Unmarshal(params, prm); err != nil || prm.Address == "" {
+		return nil, ErrInvalidParams
 	}
 
-	b, err := bc.BlocksByHeight(prm.Height)
+	bal, err := bc.Balance(prm.Address)
 	if err != nil {
-		res.Error = &respError{
-			Code:    -32603,
-			Message: "Internal error",
-		}
-
-		return
+		return nil, ErrInternalError
 	}
 
-	res.Result = b
+	return marshalBalance(bal), nil
+}
+
+func marshalBalance(v interface{}) json.RawMessage {
+	jsn, _ := json.Marshal(v)
+
+	return jsn
 }

@@ -21,38 +21,35 @@
 package network
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
+	"umid/umid"
 )
 
 const pullIntervalSec = 5
 
-func (net *Network) puller() {
-	net.wg.Add(1)
-	defer net.wg.Done()
+func (net *Network) puller(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Add(1)
+	defer wg.Done()
 
 	for {
 		select {
-		case <-net.ctx.Done():
+		case <-ctx.Done():
 			return
-		default:
-			break
+		case <-time.After(pullIntervalSec * time.Second):
+			pull(ctx, net.client, net.blockchain)
 		}
-
-		if net.pull() {
-			continue
-		}
-
-		time.Sleep(pullIntervalSec * time.Second)
 	}
 }
 
-func (net *Network) pull() (ok bool) {
-	lstBlkHeight, err := net.blockchain.LastBlockHeight()
+func pull(ctx context.Context, client *http.Client, bc umid.IBlockchain) {
+	lstBlkHeight, err := bc.LastBlockHeight()
 	if err != nil {
 		return
 	}
@@ -60,9 +57,9 @@ func (net *Network) pull() (ok bool) {
 	const tpl = `{"jsonrpc":"2.0","method":"listBlocks","params":{"height":%d},"id":"%d"}`
 	jsn := fmt.Sprintf(tpl, lstBlkHeight+1, time.Now().UnixNano())
 
-	req, _ := http.NewRequestWithContext(net.ctx, "POST", peer(), strings.NewReader(jsn))
+	req, _ := http.NewRequestWithContext(ctx, "POST", peer(), strings.NewReader(jsn))
 
-	resp, err := net.client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return
 	}
@@ -74,21 +71,25 @@ func (net *Network) pull() (ok bool) {
 		return
 	}
 
-	return net.parseResponse(body)
+	if processResponse(body, bc) > 0 {
+		pull(ctx, client, bc)
+	}
 }
 
-func (net *Network) parseResponse(body []byte) (ok bool) {
-	res := &struct{ Result [][]byte }{}
+func processResponse(body []byte, bc umid.IBlockchain) (cnt int) {
+	res := new(struct {
+		Result [][]byte `json:"result"`
+	})
 
 	if err := json.Unmarshal(body, res); err != nil {
 		return
 	}
 
 	for _, b := range res.Result {
-		if err := net.blockchain.AddBlock(b); err != nil {
+		if err := bc.AddBlock(b); err != nil {
 			return
 		}
 	}
 
-	return len(res.Result) > 0
+	return len(res.Result)
 }

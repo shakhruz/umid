@@ -21,82 +21,93 @@
 package postgres
 
 import (
+	"context"
 	"log"
+	"sync"
 	"time"
 	"umid/storage/postgres/schema"
 	"umid/storage/postgres/schema/sequences"
 
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
-func (s *postgres) Migrate() {
-	s.wg.Add(1)
-	defer s.wg.Done()
+// Migrate ...
+func Migrate(ctx context.Context, wg *sync.WaitGroup, conn *pgxpool.Pool) {
+	wg.Add(1)
+	defer wg.Done()
 
 	// retry if database is not available
 	for {
 		select {
-		case <-s.ctx.Done():
+		case <-ctx.Done():
 			return
 		default:
-			if s.doMigrate() {
-				return
+			if err := doMigrate(ctx, conn); err != nil {
+				log.Println(err.Error())
+				time.Sleep(time.Second)
+
+				continue
 			}
 
-			time.Sleep(time.Second)
+			return
 		}
 	}
 }
 
-func (s *postgres) doMigrate() bool {
-	tx, err := s.conn.Begin(s.ctx)
+func doMigrate(ctx context.Context, conn *pgxpool.Pool) error {
+	tx, err := conn.Begin(ctx)
 	if err != nil {
-		log.Println(err.Error())
-
-		return false
+		return err
 	}
 
-	defer func() { _ = tx.Rollback(s.ctx) }()
+	defer func() { _ = tx.Rollback(ctx) }()
 
-	cur, _ := s.currentVersion(tx)
+	cur, err := currentVersion(ctx, tx)
+	if err != nil {
+		return err
+	}
 
-	var ok bool
+	if err = processMigrations(tx, cur); err != nil {
+		return err
+	}
 
+	return tx.Commit(ctx)
+}
+
+func processMigrations(tx pgx.Tx, cur int) (err error) {
 	for v, m := range schema.Migrations() {
 		if v > cur {
-			for n, sql := range m {
-				log.Printf("db migration: %d.%d\n", v, n)
-
-				_, err := tx.Exec(s.ctx, sql)
-				if err != nil {
-					log.Fatal(err.Error())
-				}
+			if err = runMigrations(tx, v, m); err != nil {
+				return err
 			}
-
-			if _, err = tx.Exec(s.ctx, `select setval('db_version', $1, false)`, v); err != nil {
-				log.Fatalln(err.Error())
-			}
-
-			ok = true
 		}
 	}
 
-	if ok {
-		if err := tx.Commit(s.ctx); err != nil {
-			log.Println(err.Error())
-
-			return false
-		}
-
-		log.Println("db migration: done")
-	}
-
-	return true
+	return err
 }
 
-func (s *postgres) currentVersion(tx pgx.Tx) (v int, err error) {
-	if _, err = tx.Exec(s.ctx, sequences.DBVersion); err == nil {
-		err = tx.QueryRow(s.ctx, `select setval('db_version', nextval('db_version'), false)`).Scan(&v)
+func runMigrations(tx pgx.Tx, v int, m []string) error {
+	ctx := context.Background()
+
+	log.Printf("upgrade db v%d\n", v)
+
+	for _, sql := range m {
+		if _, err := tx.Exec(ctx, sql); err != nil {
+			return err
+		}
+	}
+
+	if _, err := tx.Exec(ctx, `select setval('db_version', $1, false)`, v); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func currentVersion(ctx context.Context, tx pgx.Tx) (v int, err error) {
+	if _, err = tx.Exec(ctx, sequences.DBVersion); err == nil {
+		err = tx.QueryRow(ctx, `select setval('db_version', nextval('db_version'), false)`).Scan(&v)
 	}
 
 	return v, err

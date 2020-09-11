@@ -22,98 +22,46 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"sync"
-	"time"
 	"umid/blockchain"
 	"umid/jsonrpc"
 	"umid/network"
 	"umid/storage"
 )
 
-const (
-	httpWriteTimeoutSec = 15
-	httpIdleTimeoutSec  = 60
-)
-
-type server struct {
-	srv *http.Server
-}
-
 func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-	log.Println("start")
+	log.SetOutput(os.Stdout)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
-	db := storage.NewStorage(ctx, wg)
-	bc := blockchain.NewBlockchain(ctx, wg, db)
-	rpc := jsonrpc.NewRPC(ctx, wg, bc)
-	net := network.NewNetwork(ctx, wg, bc)
+	db := storage.NewStorage()
+	bc := blockchain.NewBlockchain().SetStorage(db)
+	rpc := jsonrpc.NewRPC().SetBlockchain(bc)
+	net := network.NewNetwork().SetBlockchain(bc)
+	srv := network.NewServer()
 
-	go db.Worker()
-	go bc.Worker()
-	go rpc.Worker()
-	go net.Worker()
-
-	http.HandleFunc("/json-rpc", rpc.HTTP)
+	http.HandleFunc("/json-rpc", jsonrpc.CORS(jsonrpc.Filter(rpc.HTTP)))
 	http.HandleFunc("/json-rpc-ws", rpc.WebSocket)
-	http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusServiceUnavailable)
-	})
 
-	srv := newServer()
-	go srv.serve()
+	go db.Worker(ctx, wg)
+	go bc.Worker(ctx, wg)
+	go rpc.Worker(ctx, wg)
+	go net.Worker(ctx, wg)
+	go srv.Serve()
 
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt)
 	<-sigint
 
-	log.Println("prepare to shutdown")
-	time.Sleep(time.Second)
-	log.Println("shutting down")
-
+	srv.DrainConnections()
 	cancel()
+	srv.Shutdown()
 
-	srv.shutdown()
-
-	log.Println("wait group")
 	wg.Wait()
-
-	log.Println("stopped")
-}
-
-func newServer() server {
-	addr := "127.0.0.1:8080"
-	if val, ok := os.LookupEnv("BIND"); ok {
-		addr = val
-	}
-
-	return server{
-		srv: &http.Server{
-			Addr: addr,
-
-			ReadTimeout:       time.Second,
-			WriteTimeout:      time.Second * httpWriteTimeoutSec,
-			IdleTimeout:       time.Second * httpIdleTimeoutSec,
-			ReadHeaderTimeout: time.Second,
-		},
-	}
-}
-
-func (s server) serve() {
-	if err := s.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Println(err.Error())
-	}
-}
-
-func (s server) shutdown() {
-	if err := s.srv.Shutdown(context.Background()); err != nil {
-		log.Println(err.Error())
-	}
 }

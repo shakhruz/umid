@@ -20,30 +20,15 @@
 
 package umid
 
-import "time"
-
-// IAddress ...
-type IAddress interface{}
-
-// ITransaction ...
-type ITransaction interface {
-	Hash() []byte
-	Value() uint64
-	Verify() error
-}
-
-// IHeader ...
-type IHeader interface{}
-
-// IBlock ...
-type IBlock interface {
-	Hash() []byte
-	Verify() error
-}
+import (
+	"context"
+	"sync"
+	"time"
+)
 
 // IStorage ...
 type IStorage interface {
-	Worker()
+	Worker(context.Context, *sync.WaitGroup)
 	Mempool() (IMempool, error)
 	Balance([]byte) (*Balance, error)
 	StructureByPrefix(string) (*Structure2, error)

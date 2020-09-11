@@ -21,13 +21,11 @@
 package storage
 
 import (
-	"context"
-	"sync"
 	"umid/storage/postgres"
 	"umid/umid"
 )
 
 // NewStorage ...
-func NewStorage(ctx context.Context, wg *sync.WaitGroup) umid.IStorage {
-	return postgres.NewStorage(ctx, wg)
+func NewStorage() umid.IStorage {
+	return postgres.NewStorage()
 }

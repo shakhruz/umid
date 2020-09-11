@@ -22,6 +22,7 @@ package blockchain
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"sync"
 	"umid/umid"
@@ -33,34 +34,45 @@ var errTooManyRequests = errors.New("too many requests")
 
 // Blockchain ...
 type Blockchain struct {
-	ctx          context.Context
-	wg           *sync.WaitGroup
 	storage      umid.IStorage
 	transaction  chan []byte
 	approvedKeys map[string]struct{}
 }
 
 // NewBlockchain ...
-func NewBlockchain(ctx context.Context, wg *sync.WaitGroup, db umid.IStorage) *Blockchain {
-	return &Blockchain{
-		ctx:         ctx,
-		wg:          wg,
-		storage:     db,
-		transaction: make(chan []byte, txQueueLen),
-		approvedKeys: map[string]struct{}{
-			"\x45\x88\x5c\x96\x87\xd7\x99\xa4\xd1\xf4\xd7\x86\xd8\x63\x92\x74\xd2\x93\xed\x02\x4a\xd7\xf7\xa4\x36\x71\x5d\x62\x17\xc9\xf7\x2b": {},
-		},
+func NewBlockchain() *Blockchain {
+	keys := []string{
+		"45885c9687d799a4d1f4d786d8639274d293ed024ad7f7a436715d6217c9f72b",
 	}
+
+	bc := &Blockchain{
+		transaction:  make(chan []byte, txQueueLen),
+		approvedKeys: make(map[string]struct{}, len(keys)),
+	}
+
+	for _, key := range keys {
+		b, _ := hex.DecodeString(key)
+		bc.approvedKeys[string(b)] = struct{}{}
+	}
+
+	return bc
+}
+
+// SetStorage ...
+func (bc *Blockchain) SetStorage(db umid.IStorage) *Blockchain {
+	bc.storage = db
+
+	return bc
 }
 
 // Worker ...
-func (bc *Blockchain) Worker() {
-	bc.wg.Add(1)
-	defer bc.wg.Done()
+func (bc *Blockchain) Worker(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Add(1)
+	defer wg.Done()
 
 	for {
 		select {
-		case <-bc.ctx.Done():
+		case <-ctx.Done():
 			return
 		case t := <-bc.transaction:
 			_ = bc.storage.AddTransaction(t)

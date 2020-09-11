@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package jsonrpc_test
+package method_test
 
 import (
 	"context"
@@ -32,42 +32,60 @@ import (
 	"umid/umid"
 )
 
-func TestListStructures(t *testing.T) {
-	var counter int
-
-	bc := &bcMock{}
-	bc.FnStructures = func() ([]*umid.Structure, error) {
-		if counter == 0 {
-			counter = 1
-			return nil, errors.New("not found")
-		}
-
-		arr := make([]*umid.Structure, 1)
-		arr[0] = &umid.Structure{
-			Prefix: "umi",
-			Name:   "UMI",
-		}
-
-		return arr, nil
-	}
-
+func TestGetBalance(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	rpc := jsonrpc.NewRPC(ctx, &sync.WaitGroup{}, bc)
-	go rpc.Worker()
+	bc := &bcMock{}
+	bc.FnBalance = func(a string) (*umid.Balance, error) {
+		switch a {
+		case "umi1aaa":
+			return &umid.Balance{Confirmed: 1, Interest: 2, Unconfirmed: 3, Composite: nil}, nil
+		case "umi1bbb":
+			return &umid.Balance{Confirmed: 10, Interest: 20, Unconfirmed: 30, Composite: new(uint64)}, nil
+		}
+
+		return nil, errors.New("invalid address")
+	}
+
+	rpc := jsonrpc.NewRPC().SetBlockchain(bc)
+	go rpc.Worker(ctx, &sync.WaitGroup{})
 
 	tests := []struct {
 		request  string
 		response string
 	}{
 		{
-			`{"jsonrpc":"2.0","method":"listStructures","id":1}`,
-			`{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":1}`,
+			`{"jsonrpc":"2.0","method":"getBalance","id":1}`,
+			`{"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":1}`,
 		},
 		{
-			`{"jsonrpc":"2.0","method":"listStructures","id":2}`,
-			`{"jsonrpc":"2.0","result":[{"prefix":"umi","name":"UMI","fee_percent":0,"profit_percent":0,"deposit_percent":0,"fee_address":"","profit_address":"","master_address":"","balance":0,"address_count":0}],"id":2}`,
+			`{"jsonrpc":"2.0","method":"getBalance","params":[],"id":2}`,
+			`{"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":2}`,
+		},
+		{
+			`{"jsonrpc":"2.0","method":"getBalance","params":{"abc":1},"id":3}`,
+			`{"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":3}`,
+		},
+		{
+			`{"jsonrpc":"2.0","method":"getBalance","params":{"address":1},"id":4}`,
+			`{"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":4}`,
+		},
+		{
+			`{"jsonrpc":"2.0","method":"getBalance","params":{"address":"aaa"},"id":5}`,
+			`{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":5}`,
+		},
+		{
+			`{"jsonrpc":"2.0","method":"getBalance","params":{"address":"umi1aaa"},"id":6}`,
+			`{"jsonrpc":"2.0","result":{"confirmed":1,"interest":2,"unconfirmed":3,"type":""},"id":6}`,
+		},
+		{
+			`{"jsonrpc":"2.0","method":"getBalance","params":{"address":"umi1bbb"},"id":7}`,
+			`{"jsonrpc":"2.0","result":{"confirmed":10,"interest":20,"unconfirmed":30,"composite":0,"type":""},"id":7}`,
+		},
+		{
+			`[{"jsonrpc":"2.0","method":"getBalance","params":{"address":"umi1bbb"},"id":8}, 1]`,
+			`[{"jsonrpc":"2.0","result":{"confirmed":10,"interest":20,"unconfirmed":30,"composite":0,"type":""},"id":8},{"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"},"id":null}]`,
 		},
 	}
 

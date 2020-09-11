@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package jsonrpc_test
+package method_test
 
 import (
 	"context"
@@ -48,8 +48,8 @@ func TestGetStructure(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	rpc := jsonrpc.NewRPC(ctx, &sync.WaitGroup{}, bc)
-	go rpc.Worker()
+	rpc := jsonrpc.NewRPC().SetBlockchain(bc)
+	go rpc.Worker(ctx, &sync.WaitGroup{})
 
 	tests := []struct {
 		request  string
@@ -82,6 +82,67 @@ func TestGetStructure(t *testing.T) {
 		{
 			`{"jsonrpc":"2.0","method":"getStructure","params":{"prefix":"umi"},"id":7}`,
 			`{"jsonrpc":"2.0","result":{"prefix":"umi","name":"UMI","fee_percent":0,"profit_percent":0,"deposit_percent":0,"fee_address":"","profit_address":"","master_address":"","balance":0,"address_count":0},"id":7}`,
+		},
+	}
+
+	for _, test := range tests {
+		req, _ := http.NewRequestWithContext(ctx, "POST", "/json-rpc", strings.NewReader(test.request))
+		req.Header.Set("Content-Type", "application/json")
+
+		res := httptest.NewRecorder()
+		handler := http.HandlerFunc(rpc.HTTP)
+		handler.ServeHTTP(res, req)
+
+		if res.Code != http.StatusOK {
+			t.Errorf("wrong http code: got %v want %v", res.Code, http.StatusOK)
+		}
+
+		if res.Header().Get("Content-Type") != "application/json" {
+			t.Errorf("wrong Content-Type header: got %v want %v", res.Header().Get("Content-Type"), "application/json")
+		}
+
+		if res.Body.String() != test.response {
+			t.Errorf("unexpected body: got %v want %v", res.Body.String(), test.response)
+		}
+	}
+}
+
+func TestListStructures(t *testing.T) {
+	var counter int
+
+	bc := &bcMock{}
+	bc.FnStructures = func() ([]*umid.Structure, error) {
+		if counter == 0 {
+			counter = 1
+			return nil, errors.New("not found")
+		}
+
+		arr := make([]*umid.Structure, 1)
+		arr[0] = &umid.Structure{
+			Prefix: "umi",
+			Name:   "UMI",
+		}
+
+		return arr, nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	rpc := jsonrpc.NewRPC().SetBlockchain(bc)
+	go rpc.Worker(ctx, &sync.WaitGroup{})
+
+	tests := []struct {
+		request  string
+		response string
+	}{
+		{
+			`{"jsonrpc":"2.0","method":"listStructures","id":1}`,
+			`{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":1}`,
+		},
+		{
+			`{"jsonrpc":"2.0","method":"listStructures","id":2}`,
+			`{"jsonrpc":"2.0","result":[{"prefix":"umi","name":"UMI","fee_percent":0,"profit_percent":0,"deposit_percent":0,"fee_address":"","profit_address":"","master_address":"","balance":0,"address_count":0}],"id":2}`,
 		},
 	}
 
