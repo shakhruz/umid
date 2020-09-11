@@ -41,17 +41,8 @@ func (s *postgres) Structures() ([]*umid.Structure2, error) {
 		st := &umid.Structure2{}
 
 		err := rows.Scan(
-			&st.Prefix,
-			&st.Name,
-			&st.FeePercent,
-			&st.ProfitPercent,
-			&st.DepositPercent,
-			&st.FeeAddress,
-			&st.ProfitAddress,
-			&st.MasterAddress,
-			&st.TransitAddresses,
-			&st.Balance,
-			&st.AddressCount,
+			&st.Prefix, &st.Name, &st.FeePercent, &st.ProfitPercent, &st.DepositPercent, &st.FeeAddress,
+			&st.ProfitAddress, &st.MasterAddress, &st.TransitAddresses, &st.Balance, &st.AddressCount,
 		)
 		if err != nil {
 			return nil, err
@@ -73,17 +64,8 @@ func (s *postgres) StructureByPrefix(p string) (*umid.Structure2, error) {
 	st := &umid.Structure2{}
 
 	err := row.Scan(
-		&st.Prefix,
-		&st.Name,
-		&st.FeePercent,
-		&st.ProfitPercent,
-		&st.DepositPercent,
-		&st.FeeAddress,
-		&st.ProfitAddress,
-		&st.MasterAddress,
-		&st.TransitAddresses,
-		&st.Balance,
-		&st.AddressCount,
+		&st.Prefix, &st.Name, &st.FeePercent, &st.ProfitPercent, &st.DepositPercent, &st.FeeAddress,
+		&st.ProfitAddress, &st.MasterAddress, &st.TransitAddresses, &st.Balance, &st.AddressCount,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

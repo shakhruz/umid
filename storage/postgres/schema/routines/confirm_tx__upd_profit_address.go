@@ -23,10 +23,10 @@ package routines
 // ConfirmTxUpdProfitAddress ...
 const ConfirmTxUpdProfitAddress = `
 create or replace function confirm_tx__upd_profit_address(bytes bytea,
-                                              tx_height integer,
-                                              blk_height integer,
-                                              blk_tx_idx integer,
-                                              blk_time timestamptz)
+                                                          tx_height integer,
+                                                          blk_height integer,
+                                                          blk_tx_idx integer,
+                                                          blk_time timestamptz)
     returns void
     language plpgsql
 as
@@ -80,16 +80,19 @@ begin
 		--
 		select confirmed_value into old_balance from get_address_balance(profit_adr, blk_time);
 		-- больше не учитывается структура, т.к. это теперь fee-адресс
-		perform upd_address_balance(profit_adr, -str_balance, blk_time, tx_height, 'update profit [1]', 'fee'::address_type);
+		perform upd_address_balance(
+		    profit_adr, -str_balance, blk_time, tx_height, 'update profit [1]', 'fee'::address_type);
 		-- активный баланс старого profit становтися fee и не считается в dev
-		perform upd_address_balance(dev_adr, -old_balance, blk_time, tx_height, 'update profit [1]', 'dev'::address_type);
+		perform upd_address_balance(
+		    dev_adr, -old_balance, blk_time, tx_height, 'update profit [1]', 'dev'::address_type);
 
         select confirmed_value into new_balance from get_address_balance(tx_recipient, blk_time);
 		-- новый адрес не учитывается в балансе структуры
 		perform upd_structure_balance(st_version, -new_balance, blk_time, tx_height, 'update profit [1]');
 		-- включаем в баланс нового profit баланс структуры
 		str_balance := str_balance - new_balance; 
-		perform upd_address_balance(tx_recipient, str_balance, blk_time, tx_height, 'update profit [1]', 'profit'::address_type);
+		perform upd_address_balance(
+		    tx_recipient, str_balance, blk_time, tx_height, 'update profit [1]', 'profit'::address_type);
 	else
 		-- деактивируем старый адрес
 		update structure_address
@@ -104,7 +107,8 @@ begin
 		select confirmed_value into new_balance from get_address_balance(tx_recipient, blk_time);
 
 		-- выпиливаем баланс структуры из старого профита - остается только активный баланс
-		perform upd_address_balance(profit_adr, str_balance, blk_time, tx_height, 'update profit', 'deposit'::address_type);
+		perform upd_address_balance(
+		    profit_adr, str_balance, blk_time, tx_height, 'update profit', 'deposit'::address_type);
 
 		-- выпиливаем баланс нового адреса из баланса структуры
 		perform upd_structure_balance(st_version, -new_balance, blk_time, tx_height, 'update profit');
@@ -115,7 +119,8 @@ begin
 
 		-- увеличиваем баланс нового профит-адреса на размер структуры
 		str_balance := str_balance + old_balance;
-		perform upd_address_balance(tx_recipient, str_balance, blk_time, tx_height, 'update profit', 'profit'::address_type);
+		perform upd_address_balance(
+		    tx_recipient, str_balance, blk_time, tx_height, 'update profit', 'profit'::address_type);
 	end if;
 
 	-- активируем новый адрес
@@ -131,8 +136,10 @@ begin
     returning dev_address, master_address, fee_address, name, profit_percent, fee_percent
          into dev_adr, mst_adr, fee_adr, st_name, st_profit_prc, st_fee_prc;
     --
-    insert into structure_settings_log (version, prefix, name, profit_percent, fee_percent, dev_address, master_address, profit_address, fee_address, created_at, tx_height, comment)
-    values (st_version, st_prefix, st_name, st_profit_prc, st_fee_prc, dev_adr, mst_adr, tx_recipient, fee_adr, blk_time, confirm_tx__upd_profit_address.tx_height, 'update profit');
+    insert into structure_settings_log (version, prefix, name, profit_percent, fee_percent, dev_address,
+                                        master_address, profit_address, fee_address, created_at, tx_height, comment)
+    values (st_version, st_prefix, st_name, st_profit_prc, st_fee_prc, dev_adr, mst_adr, tx_recipient,
+            fee_adr, blk_time, confirm_tx__upd_profit_address.tx_height, 'update profit');
 
     --
 	insert into transaction (hash, height, confirmed_at, block_height, block_tx_idx, version, sender, recipient, struct)

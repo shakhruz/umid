@@ -68,8 +68,8 @@ type TxStruct struct {
 // Transaction ...
 type Transaction struct {
 	Hash        string    `json:"hash"`
-	Height      int32     `json:"height,omitempty"`
 	ConfirmedAt int64     `json:"confirmed_at,omitempty"`
+	Height      int32     `json:"height,omitempty"`
 	BlockHeight int32     `json:"block_height"`
 	BlockTxIdx  int32     `json:"block_tx_idx"`
 	Version     int16     `json:"version"`
@@ -113,8 +113,8 @@ type Structure struct {
 // Transaction2 ...
 type Transaction2 struct {
 	Hash        []byte
-	Height      int32
 	ConfirmedAt time.Time
+	Height      int32
 	BlockHeight int32
 	BlockTxIdx  int32
 	Version     int16

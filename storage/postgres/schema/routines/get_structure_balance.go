@@ -33,8 +33,8 @@ declare
     rec         record;
     --
     periods   constant double precision := 30 * 24 * 60 * 60; -- Число периодов наращения в месяц
-    nominal_interest   double precision; -- Номинальная месячная процентная ставка выражается в виде десятичной дроби. 6 т.д .:% = 0,06
-    effective_interest double precision; -- Эффективная месячная процентная ставка выражается в виде десятичной дроби. 6 т.д .:% = 0,06
+    nominal_interest   double precision; -- Номинальная месячная процентная ставка выражается в виде десятичной дроби.
+    effective_interest double precision; -- Эффективная месячная процентная ставка выражается в виде десятичной дроби.
     period             double precision; -- Число периодов наращения для которых нужно получить сумму
     --
     lst_value   bigint;
@@ -83,23 +83,29 @@ begin
         where l.version = get_structure_balance.version
           and l.updated_at between lst_time and epoch
         loop
-			raise debug '% - % [%] - изменение процентов', lst_time, (lst_value::double precision/100), (lst_percent::double precision/100);
+			raise debug '% - % [%] - изменение процентов',
+			    lst_time, (lst_value::double precision/100), (lst_percent::double precision/100);
 			--
         	effective_interest := (lst_percent::double precision / 10000::double precision);
-        	nominal_interest := periods * ((1::double precision + effective_interest) ^ (1::double precision / periods) - 1::double precision);
+        	nominal_interest := periods * (
+        	    (1::double precision + effective_interest) ^ (1::double precision / periods) - 1::double precision);
             period := extract(epoch from (rec.updated_at - lst_time));
-            lst_value := floor(lst_value::double precision * (1::double precision + (nominal_interest / periods)) ^ period)::bigint;
+            lst_value := floor(lst_value::double precision *
+                               (1::double precision + (nominal_interest / periods)) ^ period)::bigint;
             --
             lst_percent := rec.deposit_percent;
             lst_time := rec.updated_at;
         end loop;
     --
     effective_interest := (lst_percent::double precision / 10000::double precision);
-	nominal_interest := periods * ((1::double precision + effective_interest) ^ (1::double precision / periods) - 1::double precision);
+	nominal_interest := periods * (
+	    (1::double precision + effective_interest) ^ (1::double precision / periods) - 1::double precision);
 	period := extract(epoch from (epoch - lst_time));
-	lst_value := floor(lst_value::double precision * (1::double precision + (nominal_interest / periods)) ^ period)::bigint;
+	lst_value := floor(lst_value::double precision *
+	                   (1::double precision + (nominal_interest / periods)) ^ period)::bigint;
     --
-    raise debug '% - % [%] - финальное значение', lst_time, (lst_value::double precision/100), (lst_percent::double precision/100);
+    raise debug '% - % [%] - финальное значение',
+        lst_time, (lst_value::double precision/100), (lst_percent::double precision/100);
     --
     value := lst_value;
     percent := lst_percent;

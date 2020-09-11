@@ -23,10 +23,10 @@ package routines
 // ConfirmTxUpdStructure ...
 const ConfirmTxUpdStructure = `
 create or replace function confirm_tx__upd_structure(bytes bytea,
-                                          tx_height_ integer,
-                                          blk_height integer,
-                                          blk_tx_idx integer,
-                                          blk_timestamp timestamptz)
+                                                     tx_height_ integer,
+                                                     blk_height integer,
+                                                     blk_tx_idx integer,
+                                                     blk_timestamp timestamptz)
     returns void
     language plpgsql
 as
@@ -74,8 +74,10 @@ begin
     returning dev_address, master_address, profit_address, fee_address
          into dev_adr, mst_adr, fee_adr, prof_adr;
     --
-    insert into structure_settings_log (version, prefix, name, profit_percent, fee_percent, dev_address, master_address, profit_address, fee_address, created_at, tx_height, comment)
-    values (st_version, st_prefix, st_name, st_profit_prc, st_fee_prc, dev_adr, mst_adr, prof_adr, fee_adr, blk_timestamp, tx_height_, 'update structure');
+    insert into structure_settings_log (version, prefix, name, profit_percent, fee_percent, dev_address,
+                                        master_address, profit_address, fee_address, created_at, tx_height, comment)
+    values (st_version, st_prefix, st_name, st_profit_prc, st_fee_prc, dev_adr, mst_adr, prof_adr, fee_adr,
+            blk_timestamp, tx_height_, 'update structure');
     --
     update structure_percent s
        set deposit_percent = s.percent - st_profit_prc
@@ -85,7 +87,8 @@ begin
 	--
 	if upd_ver is not null
 	then
-		insert into structure_percent_log (version, prefix, level, percent, dev_percent, profit_percent, deposit_percent, block_height, updated_at, comment)
+		insert into structure_percent_log (version, prefix, level, percent, dev_percent, profit_percent,
+		                                   deposit_percent, block_height, updated_at, comment)
 		values (
 				st_version,
 				st_prefix,

@@ -57,7 +57,8 @@ begin
       and type = 'transit'
       and deleted_at is null;
 
-    perform upd_address_balance(tx_recipient, 0::bigint, blk_time, tx_height, 'деактивация транзитного адреса', 'deposit'::address_type);
+    perform upd_address_balance(
+        tx_recipient, 0::bigint, blk_time, tx_height, 'деактивация транзитного адреса', 'deposit'::address_type);
 end
 $$;
 `

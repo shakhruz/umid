@@ -31,14 +31,13 @@ import (
 
 // Migrations ...
 func Migrations() [][]string {
-	v := make([][]string, 1)
-
-	v = append(v, v1())
-	v = append(v, v2())
-	v = append(v, v3())
-	v = append(v, v4())
-
-	return v
+	return [][]string{
+		nil,
+		v1(),
+		v2(),
+		v3(),
+		v4(),
+	}
 }
 
 func isTestnet() bool {

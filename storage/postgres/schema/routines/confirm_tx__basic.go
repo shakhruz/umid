@@ -78,7 +78,8 @@ begin
             perform upd_address_balance(profit_address_, -tx_value, blk_timestamp, tx_height, 'списание [profit]');
 		elseif tx_sender = profit_address_
 		then
-            perform upd_address_balance(dev_address_, -tx_value, blk_timestamp, tx_height, 'списание [dev из-за profit]');
+            perform upd_address_balance(
+                dev_address_, -tx_value, blk_timestamp, tx_height, 'списание [dev из-за profit]');
         end if;
     end if;
 
@@ -109,7 +110,8 @@ begin
                 tx_value := tx_value - tx_fee_val;
                 tx_fee_adr := fee_address_;
 
-                perform upd_address_balance(fee_address_, tx_fee_val, blk_timestamp, tx_height, 'перевод комиссии [fee]');
+                perform upd_address_balance(
+                    fee_address_, tx_fee_val, blk_timestamp, tx_height, 'перевод комиссии [fee]');
             end if;
         end if;
 
@@ -121,7 +123,8 @@ begin
             perform upd_address_balance(profit_address_, tx_value, blk_timestamp, tx_height, 'пополнение [profit]');
         elseif tx_recipient = profit_address_
 		then -- дев включает в себя баланс профита
-            perform upd_address_balance(dev_address_, tx_value, blk_timestamp, tx_height, 'пополнение [dev из-за profit]');
+            perform upd_address_balance(
+                dev_address_, tx_value, blk_timestamp, tx_height, 'пополнение [dev из-за profit]');
         end if;
     end if;
 

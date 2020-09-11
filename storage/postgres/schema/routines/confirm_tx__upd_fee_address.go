@@ -64,20 +64,24 @@ begin
 		perform upd_structure_balance(st_version, -new_balance, blk_time, tx_height, 'update fee [1]');
         --
 		perform upd_address_balance(dev_adr, -new_balance, blk_time, tx_height, 'update fee [1]', 'dev'::address_type);
-		perform upd_address_balance(profit_adr, -new_balance, blk_time, tx_height, 'update fee [1]', 'profit'::address_type);
-        perform upd_address_balance(tx_recipient, 0::bigint, blk_time, tx_height, 'update fee [1]', 'fee'::address_type);
+		perform upd_address_balance(
+		    profit_adr, -new_balance, blk_time, tx_height, 'update fee [1]', 'profit'::address_type);
+        perform upd_address_balance(
+            tx_recipient, 0::bigint, blk_time, tx_height, 'update fee [1]', 'fee'::address_type);
 	else
         select confirmed_value into new_balance from get_address_balance(tx_recipient, blk_time);
         --
 		perform upd_structure_balance(st_version, -new_balance, blk_time, tx_height, 'update fee');
 		perform upd_address_balance(dev_adr, -new_balance, blk_time, tx_height, 'update fee', 'dev'::address_type);
-		perform upd_address_balance(profit_adr, -new_balance, blk_time, tx_height, 'update fee', 'profit'::address_type);
+		perform upd_address_balance(
+		    profit_adr, -new_balance, blk_time, tx_height, 'update fee', 'profit'::address_type);
         perform upd_address_balance(tx_recipient, 0::bigint, blk_time, tx_height, 'update fee', 'fee'::address_type);
         --
         select confirmed_value into old_balance from get_address_balance(fee_adr, blk_time);
 		perform upd_structure_balance(st_version, old_balance, blk_time, tx_height, 'update fee*');
 		perform upd_address_balance(dev_adr, old_balance, blk_time, tx_height, 'update fee*', 'dev'::address_type);
-		perform upd_address_balance(profit_adr, old_balance, blk_time, tx_height, 'update fee*', 'profit'::address_type);
+		perform upd_address_balance(
+		    profit_adr, old_balance, blk_time, tx_height, 'update fee*', 'profit'::address_type);
 	end if;
 
     -- деактивируем старый адрес

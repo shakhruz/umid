@@ -34,7 +34,7 @@ func (l GetStructure) Name() string {
 }
 
 // Process ...
-func (l GetStructure) Process(bc umid.IBlockchain, params json.RawMessage) (result json.RawMessage, error json.RawMessage) {
+func (l GetStructure) Process(bc umid.IBlockchain, params json.RawMessage) (json.RawMessage, json.RawMessage) {
 	prm := new(struct {
 		Prefix string `json:"prefix"`
 	})

@@ -23,11 +23,11 @@ package routines
 // UpdAddressBalance ...
 const UpdAddressBalance = `
 create or replace function upd_address_balance(address bytea,
-                                    delta_value bigint,
-                                    tx_time timestamptz,
-                                    tx_height integer,
-                                    comment text default null,
-                                    type address_type default null)
+                                               delta_value bigint,
+                                               tx_time timestamptz,
+                                               tx_height integer,
+                                               comment text default null,
+                                               type address_type default null)
     returns void
     language plpgsql
 as
@@ -53,8 +53,10 @@ begin
 	new_value := cur_value + upd_address_balance.delta_value;
 	new_percent := cur_percent;
 
-	insert into address_balance_confirmed (address, version, value, percent, type, tx_height, updated_at, created_at, created_tx_height)
-	values (upd_address_balance.address, adr_version, new_value, cur_percent, new_type, upd_address_balance.tx_height, upd_address_balance.tx_time, upd_address_balance.tx_time, upd_address_balance.tx_height)
+	insert into address_balance_confirmed (address, version, value, percent, type, tx_height,
+	                                       updated_at, created_at, created_tx_height)
+	values (upd_address_balance.address, adr_version, new_value, cur_percent, new_type, upd_address_balance.tx_height,
+	        upd_address_balance.tx_time, upd_address_balance.tx_time, upd_address_balance.tx_height)
 	on conflict on constraint address_balance_confirmed_pkey do update set
 		value = new_value,
 		percent = cur_percent,
@@ -64,14 +66,17 @@ begin
 	returning created_tx_height into crt_tx;
 
 	-- пишем лог
-    insert into address_balance_confirmed_log (address, version, value, percent, type, tx_height, updated_at, delta_value, comment)
-    values (upd_address_balance.address, adr_version, new_value, new_percent, new_type, upd_address_balance.tx_height, upd_address_balance.tx_time, upd_address_balance.delta_value, upd_address_balance.comment);
+    insert into address_balance_confirmed_log (address, version, value, percent, type, tx_height,
+                                               updated_at, delta_value, comment)
+    values (upd_address_balance.address, adr_version, new_value, new_percent, new_type, upd_address_balance.tx_height,
+            upd_address_balance.tx_time, upd_address_balance.delta_value, upd_address_balance.comment);
 
 	if crt_tx = upd_address_balance.tx_height
 	then
 		-- статистика
 		insert into structure_stats (version, prefix, address_count, updates_at, tx_height)
-		values (adr_version, convert_version_to_prefix(adr_version), 1, upd_address_balance.tx_time, upd_address_balance.tx_height)
+		values (adr_version, convert_version_to_prefix(adr_version), 1, upd_address_balance.tx_time,
+		        upd_address_balance.tx_height)
 		on conflict on constraint structure_stats_pk do update
 			set address_count = structure_stats.address_count + 1;
 	end if;

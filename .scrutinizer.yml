@@ -12,11 +12,8 @@ build:
           - golint-run
           - govet-run
     tests:
-      project_setup:
-        override:
-          - go get github.com/axw/gocov
-          - go get golang.org/x/tools
-          - go mod vendor
+      befor:
+        - rm -r ./vendor
       environment:
         go:
           version: go1.15

@@ -112,20 +112,8 @@ func readAllBody(w http.ResponseWriter, r *http.Request) (b []byte, err error) {
 func CORS(next func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// All CORS requests must have an Origin header.
-		origin := r.Header.Get("Origin")
-		if origin != "" {
-			hdr := w.Header()
-			hdr.Set("Access-Control-Allow-Credentials", "true")
-			hdr.Set("Access-Control-Allow-Headers", "Content-Type")
-			hdr.Set("Access-Control-Allow-Methods", "POST,OPTIONS")
-			hdr.Set("Access-Control-Allow-Origin", origin)
-			hdr.Set("Access-Control-Max-Age", "86400")
-			hdr.Set("Vary", "Origin")
-
-			accessControl := r.Header.Get("Access-Control-Request-Headers")
-			if accessControl != "" {
-				hdr.Set("Access-Control-Allow-Headers", accessControl)
-			}
+		if r.Header.Get("Origin") != "" {
+			addCorsHeaders(w, r)
 		}
 
 		// CORS preflighted request
@@ -137,6 +125,19 @@ func CORS(next func(http.ResponseWriter, *http.Request)) func(http.ResponseWrite
 		}
 
 		next(w, r)
+	}
+}
+
+func addCorsHeaders(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Allow-Methods", "POST,OPTIONS")
+	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+	w.Header().Set("Access-Control-Max-Age", "86400")
+	w.Header().Set("Vary", "Origin")
+
+	if r.Header.Get("Access-Control-Request-Headers") != "" {
+		w.Header().Set("Access-Control-Allow-Headers", r.Header.Get("Access-Control-Request-Headers"))
 	}
 }
 

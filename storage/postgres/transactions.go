@@ -36,7 +36,6 @@ func (s *postgres) TransactionsByAddress(adr []byte) (txs []*umid.Transaction2, 
 	if err != nil {
 		return nil, err
 	}
-
 	defer rows.Close()
 
 	res := make([]*umid.Transaction2, 0, 100)
@@ -45,18 +44,8 @@ func (s *postgres) TransactionsByAddress(adr []byte) (txs []*umid.Transaction2, 
 		tx := &umid.Transaction2{}
 
 		err := rows.Scan(
-			&tx.Hash,
-			&tx.Height,
-			&tx.ConfirmedAt,
-			&tx.BlockHeight,
-			&tx.BlockTxIdx,
-			&tx.Version,
-			&tx.Sender,
-			&tx.Recipient,
-			&tx.Value,
-			&tx.FeeAddress,
-			&tx.FeeValue,
-			&tx.Structure,
+			&tx.Hash, &tx.Height, &tx.ConfirmedAt, &tx.BlockHeight, &tx.BlockTxIdx, &tx.Version, &tx.Sender,
+			&tx.Recipient, &tx.Value, &tx.FeeAddress, &tx.FeeValue, &tx.Structure,
 		)
 		if err != nil {
 			return nil, err

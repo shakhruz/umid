@@ -23,10 +23,10 @@ package routines
 // UpdStructureBalance ...
 const UpdStructureBalance = `
 create or replace function upd_structure_balance(version integer,
-                                      delta_value bigint,
-                                      epoch timestamptz,
-                                      tx_height integer,
-                                      comment text default null)
+                                                 delta_value bigint,
+                                                 epoch timestamptz,
+                                                 tx_height integer,
+                                                 comment text default null)
     returns void
     language plpgsql
 as
@@ -61,7 +61,8 @@ begin
     returning prefix into str_prefix;
     --
     insert into structure_balance_log (version, prefix, value, percent, tx_height, updated_at, comment)
-    values (upd_structure_balance.version, str_prefix, new_value, new_percent, upd_structure_balance.tx_height, upd_structure_balance.epoch, upd_structure_balance.comment);
+    values (upd_structure_balance.version, str_prefix, new_value, new_percent, upd_structure_balance.tx_height,
+            upd_structure_balance.epoch, upd_structure_balance.comment);
 end
 $$;
 `

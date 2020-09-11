@@ -68,7 +68,8 @@ begin
             --
             if upd_ver is not null
             then
-                insert into structure_percent_log (version, prefix, level, percent, dev_percent, profit_percent, deposit_percent, block_height, updated_at, comment)
+                insert into structure_percent_log (version, prefix, level, percent, dev_percent, profit_percent,
+                                                   deposit_percent, block_height, updated_at, comment)
                 values (
                         rec.version,  -- version
                         rec.prefix,   -- prefix

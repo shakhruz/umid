@@ -23,10 +23,10 @@ package routines
 // ConfirmTxAddTransitAddress ...
 const ConfirmTxAddTransitAddress = `
 create or replace function confirm_tx__add_transit_address(bytes bytea,
-                                                tx_height integer,
-												blk_height integer,
-												blk_tx_idx integer,
-												blk_time timestamptz)
+                                                           tx_height integer,
+                                                           blk_height integer,
+                                                           blk_tx_idx integer,
+                                                           blk_time timestamptz)
     returns void
     language plpgsql
 as
@@ -55,7 +55,8 @@ begin
 
     --
 
-    perform upd_address_balance(tx_recipient, 0::bigint, blk_time, tx_height, 'активация транзитного адреса', 'transit'::address_type);
+    perform upd_address_balance(
+        tx_recipient, 0::bigint, blk_time, tx_height, 'активация транзитного адреса', 'transit'::address_type);
 end
 $$;
 `
