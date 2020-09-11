@@ -13,7 +13,10 @@ build:
           - govet-run
     tests:
       project_setup:
-        override: true
+        override:
+          - go get github.com/axw/gocov
+          - go get golang.org/x/tools
+          - go mod vendor
       environment:
         go:
           version: go1.15

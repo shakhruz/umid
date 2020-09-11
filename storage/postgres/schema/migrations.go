@@ -31,8 +31,9 @@ import (
 
 // Migrations ...
 func Migrations() [][]string {
-	v := make([][]string, 2)
+	v := make([][]string, 1)
 
+	v = append(v, v1())
 	v = append(v, v2())
 	v = append(v, v3())
 	v = append(v, v4())
@@ -40,7 +41,27 @@ func Migrations() [][]string {
 	return v
 }
 
-func v2() []string {
+func isTestnet() bool {
+	return os.Getenv("NETWORK") == "testnet"
+}
+
+func routinesGetDevAddress() string {
+	if isTestnet() {
+		return routines.GetDevAddressTestnet
+	}
+
+	return routines.GetDevAddressMainnet
+}
+
+func callAddGenesis() string {
+	if isTestnet() {
+		return `select add_genesis(true)`
+	}
+
+	return `select add_genesis(false)`
+}
+
+func v1() []string {
 	return []string{
 		objtypes.AddressType,
 
@@ -63,7 +84,7 @@ func v2() []string {
 	}
 }
 
-func v3() []string {
+func v2() []string {
 	return []string{
 		routines.AddBlock,
 		routines.AddGenesis,
@@ -81,13 +102,7 @@ func v3() []string {
 		routines.ConvertVersionToPrefix,
 		routines.GetAddressBalance,
 		routines.GetAddressTransactions,
-		func() string {
-			if val, ok := os.LookupEnv("NETWORK"); ok && val == "testnet" {
-				return routines.GetDevAddressTestnet
-			}
-
-			return routines.GetDevAddressMainnet
-		}(),
+		routinesGetDevAddress(),
 		routines.GetStructureBalance,
 		routines.ParseAddress,
 		routines.ParseBlockHeader,
@@ -96,7 +111,11 @@ func v3() []string {
 		routines.UpdAddressBalance,
 		routines.UpdStructureBalance,
 		routines.UpdStructureLevel,
+	}
+}
 
+func v3() []string {
+	return []string{
 		views.AddressBalanceConfirmedView,
 		views.BlockView,
 		views.StructureAddressView,
@@ -104,13 +123,7 @@ func v3() []string {
 		views.StructureView,
 		views.TransactionView,
 
-		func() string {
-			if val, ok := os.LookupEnv("NETWORK"); ok && val == "testnet" {
-				return `select add_genesis(true)`
-			}
-
-			return `select add_genesis(false)`
-		}(),
+		callAddGenesis(),
 	}
 }
 
