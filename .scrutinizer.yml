@@ -12,8 +12,8 @@ build:
           - golint-run
           - govet-run
     tests:
-      dependencies:
-        befor:
+      project_setup:
+        override:
           - rm -r ./vendor
       environment:
         go:
