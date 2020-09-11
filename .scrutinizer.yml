@@ -12,8 +12,9 @@ build:
           - golint-run
           - govet-run
     tests:
-      befor:
-        - rm -r ./vendor
+      dependencies:
+        befor:
+          - rm -r ./vendor
       environment:
         go:
           version: go1.15
