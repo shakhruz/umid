@@ -23,8 +23,12 @@ package libumi
 import "strings"
 
 const (
-	prefixAlphabet = " abcdefghijklmnopqrstuvwxyz"
-	bech32Alphabet = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+	prefixAbc  = " abcdefghijklmnopqrstuvwxyz"
+	bech32Abc  = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+	pfxGenesis = "genesis"
+	pfxLen     = 3
+	dataLen    = 59
+	addressLen = 62
 )
 
 func bech32Encode(pfx string, pub []byte) string {
@@ -32,7 +36,7 @@ func bech32Encode(pfx string, pub []byte) string {
 
 	var s strings.Builder
 
-	s.Grow(62)
+	s.Grow(addressLen)
 	s.WriteString(pfx)
 	s.WriteString("1")
 	s.Write(data)
@@ -44,18 +48,16 @@ func bech32Encode(pfx string, pub []byte) string {
 func bech32Decode(bech string) (pfx string, data []byte, err error) {
 	bech = strings.ToLower(bech)
 
-	pfx, err = bech32ParsePrefix(bech)
-	if err != nil {
-		return pfx, data, ErrInvalidAddress
+	if pfx, err = bech32ParsePrefix(bech); err != nil {
+		return
 	}
 
-	data, err = bech32Convert5to8([]byte(bech[len(pfx)+1 : len(bech)-6]))
-	if err != nil {
-		return pfx, nil, err
+	if data, err = bech32Convert5to8([]byte(bech[len(pfx)+1 : len(bech)-6])); err != nil {
+		return
 	}
 
 	if !bech32VerifyChecksum(pfx, []byte(bech[len(pfx)+1:])) {
-		return pfx, nil, ErrInvalidAddress
+		err = ErrInvalidAddress
 	}
 
 	return pfx, data, err
@@ -67,7 +69,7 @@ func bech32ParsePrefix(s string) (string, error) {
 		return "", ErrInvalidAddress
 	}
 
-	if len(s)-sep != 59 {
+	if len(s)-sep != dataLen {
 		return "", ErrInvalidAddress
 	}
 
@@ -81,16 +83,16 @@ func bech32ParsePrefix(s string) (string, error) {
 }
 
 func bech32VerifyPrefix(s string) bool {
-	if s == genesis {
+	if s == pfxGenesis {
 		return true
 	}
 
-	if len(s) != 3 {
+	if len(s) != pfxLen {
 		return false
 	}
 
 	for i := range s {
-		if strings.IndexByte(prefixAlphabet, s[i]) < 1 {
+		if strings.IndexByte(prefixAbc, s[i]) < 1 {
 			return false
 		}
 	}
@@ -98,13 +100,13 @@ func bech32VerifyPrefix(s string) bool {
 	return true
 }
 
-func bech32Convert5to8(data []byte) (out []byte, err error) {
+func bech32Convert5to8(data []byte) ([]byte, error) {
 	var acc, bits int
 
-	out = make([]byte, 0, 32)
+	out := make([]byte, 0, 32)
 
 	for _, b := range data {
-		v := strings.IndexByte(bech32Alphabet, b)
+		v := strings.IndexByte(bech32Abc, b)
 		if v == -1 {
 			return nil, ErrInvalidAddress
 		}
@@ -114,13 +116,11 @@ func bech32Convert5to8(data []byte) (out []byte, err error) {
 
 		for bits >= 8 {
 			bits -= 8
-			out = append(out, byte(acc>>bits&0xff))
+			out = append(out, byte(acc>>bits))
 		}
 	}
 
-	err = bech32Convert5to8Verify(acc, bits)
-
-	return out, err
+	return out, bech32Convert5to8Verify(acc, bits)
 }
 
 func bech32Convert5to8Verify(acc, bits int) error {
@@ -142,47 +142,50 @@ func bech32Convert8to5(data []byte) []byte {
 
 		for bits >= 5 {
 			bits -= 5
-			res = append(res, bech32Alphabet[acc>>bits&0x1f])
+			res = append(res, bech32Abc[acc>>bits&0x1f])
 		}
 	}
 
 	if bits > 0 {
-		res = append(res, bech32Alphabet[acc<<(5-bits)&0x1f])
+		res = append(res, bech32Abc[acc<<(5-bits)&0x1f])
 	}
 
 	return res
 }
 
 func bech32CreateChecksum(prefix string, data []byte) []byte {
-	b := bech32PrefixExpand(prefix)
+	values := bech32PrefixExpand(prefix)
 
 	for _, v := range data {
-		b = append(b, strings.IndexByte(bech32Alphabet, v))
+		values = append(values, strings.IndexByte(bech32Abc, v))
 	}
 
-	b = append(b, 0, 0, 0, 0, 0, 0)
-	p := bech32PolyMod(b) ^ 1
+	polymod := bech32PolyMod(append(values, 0, 0, 0, 0, 0, 0)) ^ 1
+	checksum := make([]byte, 6)
 
-	c := make([]byte, 6)
-	for i := range c {
-		c[i] = bech32Alphabet[byte((p>>uint(5*(5-i)))&31)]
+	for i := range checksum {
+		checksum[i] = bech32Abc[byte((polymod>>uint(5*(5-i)))&31)] //nolint:gomnd
 	}
 
-	return c
+	return checksum
 }
 
 func bech32PolyMod(values []int) int {
-	gen := [...]int{0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3}
 	chk := 1
 
 	for _, v := range values {
-		b := chk >> 25
-		chk = (chk&0x1ffffff)<<5 ^ v
+		b := chk >> 25               //nolint:gomnd
+		chk = (chk&0x1ffffff)<<5 ^ v //nolint:gomnd
+		chk = bech32PolyModGen(chk, b)
+	}
 
-		for i, g := range gen {
-			if (b>>uint(i))&1 == 1 {
-				chk ^= g
-			}
+	return chk
+}
+
+func bech32PolyModGen(chk, b int) int {
+	for i, g := range [...]int{0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3} {
+		if (b>>i)&1 == 1 {
+			chk ^= g
 		}
 	}
 
@@ -191,11 +194,11 @@ func bech32PolyMod(values []int) int {
 
 func bech32PrefixExpand(p string) []int {
 	l := len(p)
-	r := make([]int, l*2+1, l*2+59)
+	r := make([]int, l*2+1)
 
 	for i, s := range p {
-		r[i] = int(s) >> 5
-		r[i+l+1] = int(s) & 31
+		r[i] = int(s) >> 5     //nolint:gomnd
+		r[i+l+1] = int(s) & 31 //nolint:gomnd
 	}
 
 	return r
@@ -205,7 +208,7 @@ func bech32VerifyChecksum(prefix string, data []byte) bool {
 	b := bech32PrefixExpand(prefix)
 
 	for _, v := range data {
-		b = append(b, strings.IndexByte(bech32Alphabet, v))
+		b = append(b, strings.IndexByte(bech32Abc, v))
 	}
 
 	return bech32PolyMod(b) == 1

@@ -35,13 +35,12 @@ import (
 
 func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-	log.SetOutput(os.Stdout)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
 	db := storage.NewStorage()
-	bc := blockchain.NewBlockchain().SetStorage(db)
+	bc := blockchain.NewBlockchain(db)
 	rpc := jsonrpc.NewRPC().SetBlockchain(bc)
 	net := network.NewNetwork().SetBlockchain(bc)
 	srv := network.NewServer()

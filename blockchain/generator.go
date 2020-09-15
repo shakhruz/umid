@@ -47,17 +47,13 @@ func (bc *Blockchain) Generator(ctx context.Context, wg *sync.WaitGroup) {
 }
 
 func generateNewBlock(bc *Blockchain) {
-	m, err := bc.storage.Mempool()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, err := bc.Mempool(ctx)
 	if err != nil {
 		log.Println(err.Error())
 
-		return
-	}
-	defer m.Close()
-
-	// now := time.Now().Unix()
-
-	for m.Next() {
 		return
 	}
 }

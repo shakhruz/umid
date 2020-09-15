@@ -22,10 +22,9 @@ package storage
 
 import (
 	"umid/storage/postgres"
-	"umid/umid"
 )
 
 // NewStorage ...
-func NewStorage() umid.IStorage {
+func NewStorage() *postgres.Postgres {
 	return postgres.NewStorage()
 }

@@ -22,17 +22,16 @@ package libumi
 
 import (
 	"encoding/binary"
-	"errors"
 	"strings"
 )
 
 // AddressLength ...
 const AddressLength = 34
 
-const genesis = "genesis"
-
-// ErrInvalidAddress ...
-var ErrInvalidAddress = errors.New("invalid address")
+const (
+	genesis uint16 = 0
+	umi     uint16 = 21929
+)
 
 // Address ...
 type Address []byte
@@ -40,7 +39,7 @@ type Address []byte
 // NewAddress ...
 func NewAddress() Address {
 	adr := make(Address, AddressLength)
-	adr.SetPrefix("umi")
+	adr.SetVersion(umi)
 
 	return adr
 }
@@ -64,14 +63,28 @@ func (a Address) Bech32() string {
 	return bech32Encode(a.Prefix(), a.PublicKey())
 }
 
+// Version ...
+func (a Address) Version() uint16 {
+	return binary.BigEndian.Uint16(a[0:2])
+}
+
+// SetVersion ...
+func (a Address) SetVersion(v uint16) Address {
+	binary.BigEndian.PutUint16(a, v)
+
+	return a
+}
+
 // Prefix ...
 func (a Address) Prefix() string {
-	return addressVersionToPrefix(a[0], a[1])
+	return versionToPrefix(binary.BigEndian.Uint16(a[0:2]))
 }
 
 // SetPrefix ...
-func (a Address) SetPrefix(s string) {
-	a[0], a[1] = prefixToAddressVersion(s)
+func (a Address) SetPrefix(s string) Address {
+	binary.BigEndian.PutUint16(a[0:2], prefixToVersion(s))
+
+	return a
 }
 
 // PublicKey ...
@@ -80,35 +93,49 @@ func (a Address) PublicKey() []byte {
 }
 
 // SetPublicKey ...
-func (a Address) SetPublicKey(b []byte) {
+func (a Address) SetPublicKey(b []byte) Address {
 	copy(a[2:34], b)
+
+	return a
 }
 
-// Version ...
-func (a Address) Version() uint16 {
-	return binary.BigEndian.Uint16(a[0:2])
+// VerifyAddress ...
+func VerifyAddress(b []byte) error {
+	return assert(b,
+		lengthIs(AddressLength),
+		versionIsValid,
+	)
 }
 
-func prefixToAddressVersion(s string) (a byte, b byte) {
-	if s != genesis {
-		a = ((s[0] - 96) << 2) | ((s[1] - 96) >> 3)
-		b = ((s[1] - 96) << 5) | (s[2] - 96)
+func prefixToVersion(s string) (v uint16) {
+	if s != pfxGenesis {
+		for i := range s {
+			v |= setChrToVer(s[i], i)
+		}
 	}
 
-	return a, b
+	return v
 }
 
-func addressVersionToPrefix(a, b byte) string {
-	if a == 0 && b == 0 {
-		return genesis
+func setChrToVer(c byte, i int) uint16 {
+	return (uint16(c) - 96) << ((2 - i) * 5)
+}
+
+func versionToPrefix(v uint16) string {
+	if v == genesis {
+		return pfxGenesis
 	}
 
 	var s strings.Builder
 
-	s.Grow(3)
-	s.WriteByte(((a >> 2) & 31) + 96)
-	s.WriteByte((((a & 3) << 3) | (b >> 5)) + 96)
-	s.WriteByte((b & 31) + 96)
+	s.Grow(pfxLen)
+	s.WriteByte(getChrFromVer(v, 0))
+	s.WriteByte(getChrFromVer(v, 1))
+	s.WriteByte(getChrFromVer(v, 2))
 
 	return s.String()
+}
+
+func getChrFromVer(v uint16, i int) byte {
+	return byte(v>>((2-i)*5))&31 + 96
 }

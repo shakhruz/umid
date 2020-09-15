@@ -87,7 +87,8 @@ func TestHttpNoContent(t *testing.T) {
 	rpc := jsonrpc.NewRPC()
 	go rpc.Worker(ctx, &sync.WaitGroup{})
 
-	req, _ := http.NewRequestWithContext(ctx, "POST", "/json-rpc", strings.NewReader(`{"jsonrpc":"2.0","method":"notify"}`))
+	body := strings.NewReader(`{"jsonrpc":"2.0","method":"notify"}`)
+	req, _ := http.NewRequestWithContext(ctx, "POST", "/json-rpc", body)
 	req.Header.Set("Content-Type", "application/json")
 
 	res := httptest.NewRecorder()
@@ -166,7 +167,8 @@ func TestHttpContext(t *testing.T) {
 
 	rpc := jsonrpc.NewRPC()
 
-	req, _ := http.NewRequestWithContext(ctx, "POST", "/json-rpc", strings.NewReader(`{"jsonrpc":"2.0","method":"listStructures","id":1}`))
+	body := strings.NewReader(`{"jsonrpc":"2.0","method":"listStructures","id":1}`)
+	req, _ := http.NewRequestWithContext(ctx, "POST", "/json-rpc", body)
 	req.Header.Set("Content-Type", "application/json")
 
 	res := httptest.NewRecorder()
@@ -190,7 +192,8 @@ func TestHttpTooManyRequests(t *testing.T) {
 	ctx := context.Background()
 	rpc := jsonrpc.NewRPC()
 
-	req, _ := http.NewRequestWithContext(ctx, "POST", "/json-rpc", strings.NewReader(`{"jsonrpc":"2.0","method":"listStructures","id":1}`))
+	body := strings.NewReader(`{"jsonrpc":"2.0","method":"listStructures","id":1}`)
+	req, _ := http.NewRequestWithContext(ctx, "POST", "/json-rpc", body)
 	req.Header.Set("Content-Type", "application/json")
 
 	for i := 0; i < 1025; i++ {

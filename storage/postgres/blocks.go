@@ -25,14 +25,24 @@ import (
 	"log"
 )
 
-func (s *postgres) LastBlockHeight() (n uint32, err error) {
+// GetLastBlockHeight ...
+func (s *Postgres) GetLastBlockHeight() (height uint64, err error) {
 	row := s.conn.QueryRow(context.Background(), `select coalesce(max(height), 0) from block`)
-	err = row.Scan(&n)
+	err = row.Scan(&height)
 
-	return
+	return height, err
 }
 
-func (s *postgres) AddBlock(b []byte) error {
+// GetLastBlockHash ...
+func (s *Postgres) GetLastBlockHash() (hash []byte, err error) {
+	row := s.conn.QueryRow(context.Background(), `select hash from block order by height desc limit 1;`)
+	err = row.Scan(&hash)
+
+	return hash, err
+}
+
+// AddBlock ...
+func (s *Postgres) AddBlock(b []byte) error {
 	var n int64
 	err := s.conn.QueryRow(context.Background(), `select coalesce(add_block($1), 0)`, b).Scan(&n)
 
@@ -45,30 +55,31 @@ func (s *postgres) AddBlock(b []byte) error {
 	return err
 }
 
-func (s *postgres) BlocksByHeight(n uint64) ([][]byte, error) {
-	const sql = `select lo_get(height) from block where height >= $1 and confirmed is true order by height limit 5000`
+// ListBlocksAfterKey ...
+func (s *Postgres) ListBlocksAfterKey(key uint64, lim uint16) (raws [][]byte, err error) {
+	const sql = `select lo_get(height) from block where height >= $1 and confirmed is true order by height limit $2`
 
-	rows, err := s.conn.Query(context.Background(), sql, n)
+	rows, err := s.conn.Query(context.Background(), sql, key, lim)
 	if err != nil {
 		return nil, err
 	}
 
-	res := make([][]byte, 0, 5000)
+	raws = make([][]byte, 0)
 
 	for rows.Next() {
-		b := make([]byte, 0)
+		raw := make([]byte, 0)
 
-		err := rows.Scan(&b)
+		err := rows.Scan(&raw)
 		if err != nil {
 			return nil, err
 		}
 
-		res = append(res, b)
+		raws = append(raws, raw)
 	}
 
 	if rows.Err() != nil {
 		return nil, rows.Err()
 	}
 
-	return res, nil
+	return raws, nil
 }

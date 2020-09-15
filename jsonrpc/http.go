@@ -117,7 +117,7 @@ func CORS(next func(http.ResponseWriter, *http.Request)) func(http.ResponseWrite
 		}
 
 		// CORS preflighted request
-		if r.Method == "OPTIONS" {
+		if r.Method == http.MethodOptions {
 			w.Header().Del("Content-Type")
 			w.WriteHeader(http.StatusNoContent)
 
@@ -144,7 +144,7 @@ func addCorsHeaders(w http.ResponseWriter, r *http.Request) {
 // Filter ...
 func Filter(next func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
+		if r.Method != http.MethodPost {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			_, _ = w.Write(errInvalidRequest)

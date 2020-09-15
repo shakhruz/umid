@@ -20,67 +20,27 @@
 
 package blockchain
 
-import (
-	"context"
-	"encoding/hex"
-	"errors"
-	"sync"
-	"umid/umid"
-)
-
-const txQueueLen = 100_000
-
-var errTooManyRequests = errors.New("too many requests")
+type iStorage interface {
+	iBalance
+	iBlock
+	iStructure
+	iTransaction
+}
 
 // Blockchain ...
 type Blockchain struct {
-	storage      umid.IStorage
-	transaction  chan []byte
-	approvedKeys map[string]struct{}
+	balance
+	block
+	structure
+	transaction
 }
 
 // NewBlockchain ...
-func NewBlockchain() *Blockchain {
-	keys := []string{
-		"45885c9687d799a4d1f4d786d8639274d293ed024ad7f7a436715d6217c9f72b",
+func NewBlockchain(db iStorage) *Blockchain {
+	return &Blockchain{
+		balance:     balance{db: db},
+		block:       newBlock(db),
+		structure:   structure{db: db},
+		transaction: newTransaction(db),
 	}
-
-	bc := &Blockchain{
-		transaction:  make(chan []byte, txQueueLen),
-		approvedKeys: make(map[string]struct{}, len(keys)),
-	}
-
-	for _, key := range keys {
-		b, _ := hex.DecodeString(key)
-		bc.approvedKeys[string(b)] = struct{}{}
-	}
-
-	return bc
-}
-
-// SetStorage ...
-func (bc *Blockchain) SetStorage(db umid.IStorage) *Blockchain {
-	bc.storage = db
-
-	return bc
-}
-
-// Worker ...
-func (bc *Blockchain) Worker(ctx context.Context, wg *sync.WaitGroup) {
-	wg.Add(1)
-	defer wg.Done()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case t := <-bc.transaction:
-			_ = bc.storage.AddTransaction(t)
-		}
-	}
-}
-
-// Mempool ...
-func (bc *Blockchain) Mempool() (umid.IMempool, error) {
-	return bc.storage.Mempool()
 }

@@ -22,60 +22,55 @@ package postgres
 
 import (
 	"context"
-	"errors"
-	"log"
-	"umid/umid"
 
 	"github.com/jackc/pgx/v4"
 )
 
-type mempool struct {
-	tx  pgx.Tx
-	val []byte
-}
-
 // Mempool ...
-func (s *postgres) Mempool() (mem umid.IMempool, err error) {
-	ctx := context.Background()
+func (s *Postgres) Mempool(ctx context.Context) (<-chan []byte, error) {
+	ctz := context.Background()
 
-	tx, err := s.conn.Begin(ctx)
+	tx, err := s.conn.Begin(ctz)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = tx.Exec(ctx, `declare cur no scroll cursor for select raw from mempool order by priority for update`)
+	_, err = tx.Exec(ctz, `declare cur no scroll cursor for select raw from mempool order by priority`)
 	if err != nil {
-		_ = tx.Rollback(ctx)
+		_ = tx.Rollback(ctz)
 
 		return nil, err
 	}
 
-	mem = &mempool{tx, []byte{}}
+	c := make(chan []byte)
 
-	return mem, nil
+	go fetcher(ctx, tx, c)
+
+	return c, nil
 }
 
-func (m *mempool) Next() bool {
-	ctx := context.Background()
-	row := m.tx.QueryRow(ctx, `fetch next from cur`)
+func fetcher(ctx context.Context, tx pgx.Tx, c chan<- []byte) {
+	ctz := context.Background()
 
-	if err := row.Scan(&m.val); err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
-			_ = m.tx.Rollback(ctx)
+	defer func() {
+		close(c)
+
+		_ = tx.Rollback(ctz)
+	}()
+
+	for {
+		raw := make([]byte, 150)
+		row := tx.QueryRow(ctz, `fetch next from cur`)
+
+		if err := row.Scan(&raw); err != nil {
+			return
 		}
 
-		return false
-	}
-
-	return true
-}
-
-func (m *mempool) Value() []byte {
-	return m.val
-}
-
-func (m *mempool) Close() {
-	if err := m.tx.Commit(context.Background()); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
-		log.Println(err.Error())
+		select {
+		case c <- raw:
+			continue
+		case <-ctx.Done():
+			return
+		}
 	}
 }

@@ -18,54 +18,63 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package libumi
+package jsonrpc
 
 import (
-	"encoding/binary"
+	"encoding/json"
+	"log"
 )
 
-// TxBasic is ...
-type TxBasic []byte
-
-// NewTxBasic ...
-func NewTxBasic() TxBasic {
-	t := make([]byte, TxLength)
-	setTxVersion(t, Basic)
-
-	return t
+type iBlock interface {
+	ListBlocksAfterKey(key uint64, lim uint16) (raws [][]byte, err error)
 }
 
-// Version ...
-func (t TxBasic) Version() uint8 {
-	return t[0]
+// ListBlocks ...
+func ListBlocks(bc iBlock, params []byte) (result []byte, errors []byte) {
+	key, lim, errs := unmarshalBlocksParams(params)
+	if errs != nil {
+		return nil, errs
+	}
+
+	raws, err := bc.ListBlocksAfterKey(key, lim)
+	if err != nil {
+		log.Print(err.Error())
+
+		return nil, errServiceUnavail
+	}
+
+	return marshalBlocks(raws), nil
 }
 
-// Sender ...
-func (t TxBasic) Sender() Address {
-	return Address(t[1:35])
+func unmarshalBlocksParams(params []byte) (key uint64, lim uint16, errs []byte) {
+	var err error
+
+	prm := new(struct {
+		Hash   string `json:"hash"`
+		Limit  uint16 `json:"limit"`
+		Height uint64 `json:"height"`
+	})
+
+	if err = json.Unmarshal(params, prm); err != nil {
+		return 0, 0, errInvalidParams
+	}
+
+	key = prm.Height
+
+	// if key, err = hex.DecodeString(prm.Hash); err != nil {
+	// 	 return 0, 0, errInvalidParams
+	// }
+
+	lim = 5000
+	if prm.Limit > 0 {
+		lim = prm.Limit
+	}
+
+	return key, lim, errs
 }
 
-// SetSender ...
-func (t TxBasic) SetSender(a Address) {
-	copy(t[1:35], a)
-}
+func marshalBlocks(raws [][]byte) []byte {
+	jsn, _ := json.Marshal(raws)
 
-// Recipient ...
-func (t TxBasic) Recipient() Address {
-	return Address(t[35:69])
-}
-
-// SetRecipient ...
-func (t TxBasic) SetRecipient(a Address) {
-	copy(t[35:69], a)
-}
-
-// Value ...
-func (t TxBasic) Value() uint64 {
-	return binary.BigEndian.Uint64(t[69:77])
-}
-
-// SetValue ...
-func (t TxBasic) SetValue(n uint64) {
-	binary.BigEndian.PutUint64(t[69:77], n)
+	return jsn
 }

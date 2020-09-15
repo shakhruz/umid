@@ -25,12 +25,18 @@ import (
 	"net/http"
 	"os"
 	"sync"
-	"umid/umid"
 )
+
+type iBlockchain interface {
+	Mempool(ctx context.Context) (raws <-chan []byte, err error)
+	GetLastBlockHeight() (height uint64, err error)
+	GetLastBlockHash() (hash []byte, err error)
+	AddBlock(raw []byte) error
+}
 
 // Network ...
 type Network struct {
-	blockchain umid.IBlockchain
+	blockchain iBlockchain
 	client     *http.Client
 }
 
@@ -42,7 +48,7 @@ func NewNetwork() *Network {
 }
 
 // SetBlockchain ...
-func (net *Network) SetBlockchain(bc umid.IBlockchain) *Network {
+func (net *Network) SetBlockchain(bc iBlockchain) *Network {
 	net.blockchain = bc
 
 	return net

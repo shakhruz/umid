@@ -20,18 +20,15 @@
 
 package blockchain
 
-import (
-	"umid/umid"
+type iBalance interface {
+	GetBalance(adr []byte) (raw []byte, err error)
+}
 
-	"github.com/umitop/libumi"
-)
+type balance struct {
+	db iBalance
+}
 
-// Balance ...
-func (bc *Blockchain) Balance(s string) (*umid.Balance, error) {
-	adr, err := libumi.NewAddressFromBech32(s)
-	if err != nil {
-		return nil, err
-	}
-
-	return bc.storage.Balance(adr)
+// balance ...
+func (b *balance) GetBalance(adr []byte) (raw []byte, err error) {
+	return b.db.GetBalance(adr)
 }

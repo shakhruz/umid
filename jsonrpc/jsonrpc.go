@@ -24,21 +24,29 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
-	"umid/jsonrpc/method"
-	"umid/umid"
 
 	"github.com/gorilla/websocket"
 )
 
 const (
-	workerQueueLen = 1024
+	workerQueueLen    = 1024
+	codeInvalidParams = -32602
 )
 
 var (
 	errParseError     = []byte(`{"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"},"id":null}`)
 	errInvalidRequest = []byte(`{"jsonrpc":"2.0","error":{"code":-32600,"message":"Invalid Request"},"id":null}`)
 	errInternalError  = []byte(`{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":null}`)
+	errInvalidParams  = []byte(`{"code":-32602,"message":"Invalid params"}`)
+	errServiceUnavail = []byte(`{"code":-32603,"message":"Service Unavailable"}`)
 )
+
+type iBlockchain interface {
+	iBalance
+	iBlock
+	iStructure
+	iTransaction
+}
 
 type rawRequest struct {
 	ctx context.Context
@@ -60,39 +68,27 @@ type response struct {
 	ID      json.RawMessage `json:"id"`
 }
 
-// Method ...
-type Method func(bc umid.IBlockchain, params json.RawMessage) (result json.RawMessage, error json.RawMessage)
-
 // RPC ...
 type RPC struct {
-	blockchain    umid.IBlockchain
+	blockchain    iBlockchain
 	upgrader      websocket.Upgrader
 	queue         chan rawRequest
-	methods       map[string]Method
-	notifications map[string]func(umid.IBlockchain, json.RawMessage)
+	methods       map[string]func(iBlockchain, []byte) (result []byte, errors []byte)
+	notifications map[string]func(iBlockchain, []byte)
 }
 
 // NewRPC ...
 func NewRPC() *RPC {
-	rpc := &RPC{
+	return &RPC{
 		upgrader:      websocket.Upgrader{},
 		queue:         make(chan rawRequest, workerQueueLen),
-		methods:       make(map[string]Method),
-		notifications: make(map[string]func(umid.IBlockchain, json.RawMessage)),
+		methods:       methods(),
+		notifications: notifications(),
 	}
-
-	rpc.methods["getBalance"] = method.GetBalance{}.Process
-	rpc.methods["listStructures"] = method.ListStructures{}.Process
-	rpc.methods["getStructure"] = method.GetStructure{}.Process
-	rpc.methods["sendTransaction"] = method.SendTx{}.Process
-	rpc.methods["listTransactions"] = method.ListTxs{}.Process
-	rpc.methods["listBlocks"] = method.ListBlocks{}.Process
-
-	return rpc
 }
 
 // SetBlockchain ...
-func (rpc *RPC) SetBlockchain(bc umid.IBlockchain) *RPC {
+func (rpc *RPC) SetBlockchain(bc iBlockchain) *RPC {
 	rpc.blockchain = bc
 
 	return rpc
@@ -111,6 +107,23 @@ func (rpc *RPC) Worker(ctx context.Context, wg *sync.WaitGroup) {
 			q.res <- processRequest(q.ctx, q.req, rpc)
 		}
 	}
+}
+
+func methods() map[string]func(iBlockchain, []byte) ([]byte, []byte) {
+	m := make(map[string]func(iBlockchain, []byte) ([]byte, []byte))
+
+	m["getBalance"] = func(b iBlockchain, p []byte) ([]byte, []byte) { return GetBalance(b, p) }
+	m["listStructures"] = func(b iBlockchain, p []byte) ([]byte, []byte) { return ListStructures(b, p) }
+	m["getStructure"] = func(b iBlockchain, p []byte) ([]byte, []byte) { return GetStructure(b, p) }
+	m["listTransactions"] = func(b iBlockchain, p []byte) ([]byte, []byte) { return ListTransactions(b, p) }
+	m["sendTransaction"] = func(b iBlockchain, p []byte) ([]byte, []byte) { return SendTransaction(b, p) }
+	m["listBlocks"] = func(b iBlockchain, p []byte) ([]byte, []byte) { return ListBlocks(b, p) }
+
+	return m
+}
+
+func notifications() map[string]func(iBlockchain, []byte) {
+	return make(map[string]func(iBlockchain, []byte))
 }
 
 func processRequest(ctx context.Context, req json.RawMessage, rpc *RPC) (res json.RawMessage) {
@@ -186,19 +199,11 @@ func processBatchRequests(requests []json.RawMessage, rpc *RPC) []json.RawMessag
 	return res
 }
 
-func callMethod(name string, prm json.RawMessage, rpc *RPC) (result json.RawMessage, error json.RawMessage) {
+func callMethod(name string, prm []byte, rpc *RPC) (result []byte, errors []byte) {
 	fn, ok := rpc.methods[name]
 	if !ok {
-		fn = func(_ umid.IBlockchain, _ json.RawMessage) (_ json.RawMessage, err json.RawMessage) {
-			err, _ = json.Marshal(struct {
-				Code    int    `json:"code"`
-				Message string `json:"message"`
-			}{
-				Code:    -32601,
-				Message: "Method not found",
-			})
-
-			return nil, err
+		fn = func(_ iBlockchain, _ []byte) (_ []byte, err []byte) {
+			return nil, marshalError(-32601, "Method not found")
 		}
 	}
 
@@ -219,4 +224,16 @@ func marshalResponse(result json.RawMessage, error json.RawMessage, id json.RawM
 	}
 
 	return b
+}
+
+func marshalError(code int, msg string) []byte {
+	jsn, _ := json.Marshal(struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	}{
+		Code:    code,
+		Message: msg,
+	})
+
+	return jsn
 }

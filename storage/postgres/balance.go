@@ -22,18 +22,70 @@ package postgres
 
 import (
 	"context"
-	"umid/umid"
+	"encoding/binary"
 )
 
-// Balance ...
-func (s *postgres) Balance(adr []byte) (*umid.Balance, error) {
-	bal := &umid.Balance{}
+// GetBalance ...
+func (s *Postgres) GetBalance(adr []byte) (raw []byte, err error) {
+	var (
+		confirmed   uint64
+		interest    uint16
+		unconfirmed uint64
+		composite   *uint64
+		addressType string
+	)
 
 	row := s.conn.QueryRow(context.Background(), `select * from get_address_balance($1)`, adr)
 
-	if err := row.Scan(&bal.Confirmed, &bal.Interest, &bal.Unconfirmed, &bal.Composite, &bal.Type); err != nil {
+	if err := row.Scan(&confirmed, &interest, &unconfirmed, &composite, &addressType); err != nil {
 		return nil, err
 	}
 
+	bal := newBalance()
+	bal.setConfirmed(confirmed)
+	bal.setInterest(interest)
+	bal.setUnconfirmed(unconfirmed)
+	bal.setComposite(composite)
+	bal.setAddressType(addressType)
+
 	return bal, nil
+}
+
+type balance []byte
+
+func newBalance() balance {
+	return make(balance, 27)
+}
+
+func (b balance) setConfirmed(n uint64) {
+	binary.BigEndian.PutUint64(b[0:8], n)
+}
+
+func (b balance) setInterest(n uint16) {
+	binary.BigEndian.PutUint16(b[8:10], n)
+}
+
+func (b balance) setUnconfirmed(n uint64) {
+	binary.BigEndian.PutUint64(b[10:18], n)
+}
+
+func (b balance) setComposite(n *uint64) {
+	if n != nil {
+		binary.BigEndian.PutUint64(b[18:26], *n)
+	}
+}
+
+func (b balance) setAddressType(t string) {
+	//nolint:gomnd
+	v := map[string]uint8{
+		"dev":     0,
+		"master":  1,
+		"profit":  2,
+		"fee":     3,
+		"transit": 4,
+		"deposit": 5,
+		"umi":     6,
+	}
+
+	b[26] = v[t]
 }

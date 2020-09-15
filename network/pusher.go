@@ -31,12 +31,11 @@ import (
 	"net/http"
 	"sync"
 	"time"
-	"umid/umid"
 )
 
 const (
 	pushIntervalSec = 5
-	pushLimitTxs    = 10_000
+	pushTxsLimit    = 10_000
 )
 
 func (net *Network) pusher(ctx context.Context, wg *sync.WaitGroup) {
@@ -53,8 +52,8 @@ func (net *Network) pusher(ctx context.Context, wg *sync.WaitGroup) {
 	}
 }
 
-func push(ctx context.Context, client *http.Client, bc umid.IBlockchain) {
-	txs := prepareRequest(bc)
+func push(ctx context.Context, client *http.Client, bc iBlockchain) {
+	txs := fetchMempool(bc)
 	if len(txs) == 0 {
 		return
 	}
@@ -78,28 +77,29 @@ func push(ctx context.Context, client *http.Client, bc umid.IBlockchain) {
 	_ = resp.Body.Close()
 }
 
-func prepareRequest(bc umid.IBlockchain) []json.RawMessage {
-	mem, err := bc.Mempool()
+func fetchMempool(bc iBlockchain) []json.RawMessage {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mem, err := bc.Mempool(ctx)
 	if err != nil {
 		return nil
 	}
 
-	defer mem.Close()
-
 	buf := new(bytes.Buffer)
 	txs := make([]json.RawMessage, 0)
 
-	for mem.Next() {
-		if len(txs) > pushLimitTxs {
-			break
-		}
-
+	for tx := range mem {
 		buf.Reset()
 		buf.WriteString(`{"jsonrpc":"2.0","method":"sendTransaction","params":{"base64":"`)
-		buf.WriteString(base64.StdEncoding.EncodeToString(mem.Value()))
+		buf.WriteString(base64.StdEncoding.EncodeToString(tx))
 		buf.WriteString(`"},"id":1}`)
 
 		txs = append(txs, buf.Bytes())
+
+		if len(txs) >= pushTxsLimit {
+			break
+		}
 	}
 
 	return txs

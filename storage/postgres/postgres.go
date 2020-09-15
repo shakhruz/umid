@@ -22,24 +22,20 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"log"
 	"os"
 	"sync"
-	"umid/umid"
 
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
-// ErrNotFound ...
-var ErrNotFound = errors.New("not found")
-
-type postgres struct {
+// Postgres ...
+type Postgres struct {
 	conn *pgxpool.Pool
 }
 
 // NewStorage ...
-func NewStorage() umid.IStorage {
+func NewStorage() *Postgres {
 	cfg, err := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatal(err.Error())
@@ -52,10 +48,11 @@ func NewStorage() umid.IStorage {
 		log.Fatal(err.Error())
 	}
 
-	return &postgres{conn}
+	return &Postgres{conn}
 }
 
-func (s *postgres) Worker(ctx context.Context, wg *sync.WaitGroup) {
+// Worker ...
+func (s *Postgres) Worker(ctx context.Context, wg *sync.WaitGroup) {
 	go Migrate(ctx, wg, s.conn)
 	go BlockConfirmer(ctx, wg, s.conn)
 }

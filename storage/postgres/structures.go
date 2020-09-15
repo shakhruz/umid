@@ -22,58 +22,132 @@ package postgres
 
 import (
 	"context"
-	"errors"
-	"umid/umid"
+	"encoding/binary"
+	"log"
 
 	"github.com/jackc/pgx/v4"
 )
 
-func (s *postgres) Structures() ([]*umid.Structure2, error) {
+// ListStructures ...
+func (s *Postgres) ListStructures() (raws [][]byte, err error) {
 	rows, err := s.conn.Query(context.Background(), `select * from get_structures()`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	sts := make([]*umid.Structure2, 0)
+	raws = make([][]byte, 0)
 
 	for rows.Next() {
-		st := &umid.Structure2{}
-
-		err := rows.Scan(
-			&st.Prefix, &st.Name, &st.FeePercent, &st.ProfitPercent, &st.DepositPercent, &st.FeeAddress,
-			&st.ProfitAddress, &st.MasterAddress, &st.TransitAddresses, &st.Balance, &st.AddressCount,
-		)
+		raw, err := scanStructure(rows)
 		if err != nil {
 			return nil, err
 		}
 
-		sts = append(sts, st)
+		raws = append(raws, raw)
 	}
 
 	if rows.Err() != nil {
-		return nil, rows.Err()
-	}
-
-	return sts, nil
-}
-
-func (s *postgres) StructureByPrefix(p string) (*umid.Structure2, error) {
-	row := s.conn.QueryRow(context.Background(), `select * from get_structures_by_prefix($1)`, p)
-
-	st := &umid.Structure2{}
-
-	err := row.Scan(
-		&st.Prefix, &st.Name, &st.FeePercent, &st.ProfitPercent, &st.DepositPercent, &st.FeeAddress,
-		&st.ProfitAddress, &st.MasterAddress, &st.TransitAddresses, &st.Balance, &st.AddressCount,
-	)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			err = ErrNotFound
-		}
+		log.Println(rows.Err())
 
 		return nil, err
 	}
 
-	return st, nil
+	return raws, nil
+}
+
+// GetStructureByPrefix ...
+func (s *Postgres) GetStructureByPrefix(pfx []byte) (raw []byte, err error) {
+	row := s.conn.QueryRow(context.Background(), `select * from get_structures_by_prefix($1)`, pfx)
+
+	return scanStructure(row)
+}
+
+func scanStructure(row pgx.Row) ([]byte, error) {
+	var (
+		pfx, name              string
+		bal, adrCnt            uint64
+		feePer, prfPer, depPer uint16
+		feeAdr, prfAdr, mstAdr []byte
+		trnAdrs                [][]byte
+	)
+
+	err := row.Scan(&pfx, &name, &feePer, &prfPer, &depPer, &feeAdr, &prfAdr, &mstAdr, &trnAdrs, &bal, &adrCnt)
+	if err != nil {
+		return nil, err
+	}
+
+	raw := newStructure()
+	raw.setPrefix(pfx)
+	raw.setName(name)
+	raw.setFeePercent(feePer)
+	raw.setProfitPercent(prfPer)
+	raw.setDepositPercent(depPer)
+	raw.setFeeAddress(feeAdr)
+	raw.setProfitAddress(prfAdr)
+	raw.setMasterAddress(mstAdr)
+	raw.setTransitAddresses(trnAdrs)
+	raw.setBalance(bal)
+	raw.setAddressCount(adrCnt)
+
+	return raw, nil
+}
+
+type structure []byte
+
+func newStructure() structure {
+	return make(structure, 170)
+}
+
+func (s structure) setPrefix(pfx string) {
+	copy(s[0:3], pfx)
+}
+
+func (s structure) setName(name string) {
+	s[3] = uint8(len(name))
+	copy(s[4:38], name)
+}
+
+func (s structure) setFeePercent(n uint16) {
+	binary.BigEndian.PutUint16(s[38:40], n)
+}
+
+func (s structure) setProfitPercent(n uint16) {
+	binary.BigEndian.PutUint16(s[40:42], n)
+}
+
+func (s structure) setDepositPercent(n uint16) {
+	binary.BigEndian.PutUint16(s[42:44], n)
+}
+
+func (s structure) setFeeAddress(b []byte) {
+	copy(s[44:78], b)
+}
+
+func (s structure) setProfitAddress(b []byte) {
+	copy(s[78:112], b)
+}
+
+func (s structure) setMasterAddress(b []byte) {
+	copy(s[112:146], b)
+}
+
+func (s *structure) setTransitAddresses(b [][]byte) {
+	st := *s
+
+	binary.BigEndian.PutUint64(st[162:170], uint64(len(b)))
+
+	for _, x := range b {
+		st = append(st, x...)
+	}
+
+	*s = st
+}
+
+func (s structure) setBalance(n uint64) {
+	binary.BigEndian.PutUint64(s[146:154], n)
+}
+
+func (s structure) setAddressCount(n uint64) {
+	binary.BigEndian.PutUint64(s[154:162], n)
 }

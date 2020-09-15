@@ -21,23 +21,56 @@
 package blockchain
 
 import (
-	"encoding/hex"
+	"context"
 	"errors"
-	"umid/umid"
+	"sync"
 
 	"github.com/umitop/libumi"
 )
 
-var errTxInvalidValue = errors.New("invalid value")
+const txQueueLen = 100_000
+
+var (
+	errInvalidLength   = errors.New("invalid length")
+	errInvalidValue    = errors.New("invalid value")
+	errTooManyRequests = errors.New("too many requests")
+)
+
+type iTransaction interface {
+	Mempool(ctx context.Context) (raws <-chan []byte, err error)
+	AddTxToMempool(raw []byte) error
+	ListTxsByAddressAfterKey(adr []byte, key []byte, lim uint16) (raws [][]byte, err error)
+	ListTxsByAddressBeforeKey(adr []byte, key []byte, lim uint16) (raws [][]byte, err error)
+}
+
+// Worker ...
+func (bc *transaction) Worker(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Add(1)
+	defer wg.Done()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case tx := <-bc.transaction:
+			_ = bc.db.AddTxToMempool(tx)
+		}
+	}
+}
+
+// Mempool ...
+func (bc *transaction) Mempool(ctx context.Context) (raws <-chan []byte, err error) {
+	return bc.db.Mempool(ctx)
+}
 
 // AddTransaction ...
-func (bc *Blockchain) AddTransaction(b []byte) error {
-	if err := bc.VerifyTransaction(b); err != nil {
+func (bc *transaction) AddTxToMempool(raw []byte) error {
+	if err := bc.VerifyTransaction(raw); err != nil {
 		return err
 	}
 
 	select {
-	case bc.transaction <- b:
+	case bc.transaction <- raw:
 		break
 	default:
 		return errTooManyRequests
@@ -47,62 +80,48 @@ func (bc *Blockchain) AddTransaction(b []byte) error {
 }
 
 // TransactionsByAddress ...
-func (bc *Blockchain) TransactionsByAddress(s string) ([]*umid.Transaction, error) {
-	adr, err := libumi.NewAddressFromBech32(s)
-	if err != nil {
-		return nil, err
-	}
+func (bc *transaction) ListTxsByAddressAfterKey(adr []byte, key []byte, lim uint16) (raws [][]byte, err error) {
+	return bc.db.ListTxsByAddressAfterKey(adr, key, lim)
+}
 
-	raw, err := bc.storage.TransactionsByAddress(adr)
-	if err != nil {
-		return nil, err
-	}
-
-	txs := make([]*umid.Transaction, 0, len(raw))
-
-	for _, tx := range raw {
-		t := &umid.Transaction{
-			Hash:        hex.EncodeToString(tx.Hash),
-			Height:      tx.Height,
-			ConfirmedAt: tx.ConfirmedAt.Unix(),
-			BlockHeight: tx.BlockHeight,
-			BlockTxIdx:  tx.BlockTxIdx,
-			Version:     tx.Version,
-			Sender:      convertAddress(tx.Sender),
-			Recipient:   convertAddress(tx.Recipient),
-			Value:       tx.Value,
-			FeeAddress:  convertAddress(tx.FeeAddress),
-			FeeValue:    tx.FeeValue,
-			Structure:   tx.Structure,
-		}
-
-		txs = append(txs, t)
-	}
-
-	return txs, nil
+func (bc *transaction) ListTxsByAddressBeforeKey(adr []byte, key []byte, lim uint16) (raws [][]byte, err error) {
+	return bc.db.ListTxsByAddressBeforeKey(adr, key, lim)
 }
 
 // VerifyTransaction ...
-func (bc *Blockchain) VerifyTransaction(t []byte) error {
+func (bc *transaction) VerifyTransaction(raw []byte) error {
+	tx := (libumi.Transaction)(raw)
+
+	if len(tx) != libumi.TxLength {
+		return errInvalidLength
+	}
+
+	if tx.Version() == libumi.Basic {
+		if !verifyValue(tx.Value()) {
+			return errInvalidValue
+		}
+	}
+
+	return libumi.VerifyTransaction(raw)
+}
+
+func verifyValue(val uint64) bool {
 	const (
 		minValue     = 1
 		maxSafeValue = 90_071_992_547_409_91
 	)
 
-	if libumi.VersionTx(t) == libumi.Basic {
-		val := (libumi.TxBasic)(t).Value()
-		if val < minValue || val > maxSafeValue {
-			return errTxInvalidValue
-		}
-	}
-
-	return libumi.VerifyTx(t)
+	return val >= minValue && val <= maxSafeValue
 }
 
-func convertAddress(b []byte) (s string) {
-	if b != nil {
-		s = (libumi.Address)(b).Bech32()
-	}
+type transaction struct {
+	transaction chan []byte
+	db          iTransaction
+}
 
-	return s
+func newTransaction(db iTransaction) transaction {
+	return transaction{
+		transaction: make(chan []byte, txQueueLen),
+		db:          db,
+	}
 }

@@ -20,59 +20,21 @@
 
 package blockchain
 
-import (
-	"umid/umid"
+type iStructure interface {
+	GetStructureByPrefix(pfx []byte) (raw []byte, err error)
+	ListStructures() (raws [][]byte, err error)
+}
 
-	"github.com/umitop/libumi"
-)
+type structure struct {
+	db iStructure
+}
 
 // StructureByPrefix ...
-func (bc *Blockchain) StructureByPrefix(p string) (*umid.Structure, error) {
-	s, err := bc.storage.StructureByPrefix(p)
-	if err != nil {
-		return nil, err
-	}
-
-	return structConvert(s), nil
+func (bc *structure) GetStructureByPrefix(pfx []byte) (raw []byte, err error) {
+	return bc.db.GetStructureByPrefix(pfx)
 }
 
 // Structures ...
-func (bc *Blockchain) Structures() ([]*umid.Structure, error) {
-	s, err := bc.storage.Structures()
-	if err != nil {
-		return nil, err
-	}
-
-	res := make([]*umid.Structure, len(s))
-
-	for i, raw := range s {
-		res[i] = structConvert(raw)
-	}
-
-	return res, nil
-}
-
-func structConvert(s *umid.Structure2) *umid.Structure {
-	res := &umid.Structure{
-		Prefix:         s.Prefix,
-		Name:           s.Name,
-		FeePercent:     s.FeePercent,
-		ProfitPercent:  s.ProfitPercent,
-		DepositPercent: s.DepositPercent,
-		FeeAddress:     (*libumi.Address)(&s.FeeAddress).Bech32(),
-		ProfitAddress:  (*libumi.Address)(&s.ProfitAddress).Bech32(),
-		MasterAddress:  (*libumi.Address)(&s.MasterAddress).Bech32(),
-		Balance:        s.Balance,
-		AddressCount:   s.AddressCount,
-	}
-
-	if s.TransitAddresses != nil && len(s.TransitAddresses) > 0 {
-		res.TransitAddresses = make([]string, len(s.TransitAddresses))
-
-		for i := range s.TransitAddresses {
-			res.TransitAddresses[i] = (*libumi.Address)(&s.TransitAddresses[i]).Bech32()
-		}
-	}
-
-	return res
+func (bc *structure) ListStructures() (raws [][]byte, err error) {
+	return bc.db.ListStructures()
 }

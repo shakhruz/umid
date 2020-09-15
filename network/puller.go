@@ -29,7 +29,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"umid/umid"
 )
 
 const pullIntervalSec = 5
@@ -48,13 +47,13 @@ func (net *Network) puller(ctx context.Context, wg *sync.WaitGroup) {
 	}
 }
 
-func pull(ctx context.Context, client *http.Client, bc umid.IBlockchain) {
-	lstBlkHeight, err := bc.LastBlockHeight()
+func pull(ctx context.Context, client *http.Client, bc iBlockchain) {
+	lstBlkHeight, err := bc.GetLastBlockHeight()
 	if err != nil {
 		return
 	}
 
-	const tpl = `{"jsonrpc":"2.0","method":"listBlocks","params":{"height":%d},"id":"%d"}`
+	const tpl = `{"jsonrpc":"2.0","method":"listBlocks","params":{"height":%d,"limit":5000},"id":"%d"}`
 	jsn := fmt.Sprintf(tpl, lstBlkHeight+1, time.Now().UnixNano())
 
 	req, _ := http.NewRequestWithContext(ctx, "POST", peer(), strings.NewReader(jsn))
@@ -76,7 +75,7 @@ func pull(ctx context.Context, client *http.Client, bc umid.IBlockchain) {
 	}
 }
 
-func processResponse(body []byte, bc umid.IBlockchain) (cnt int) {
+func processResponse(body []byte, bc iBlockchain) (cnt int) {
 	res := new(struct {
 		Result [][]byte `json:"result"`
 	})
