@@ -23,7 +23,6 @@ package jsonrpc
 import (
 	"encoding/binary"
 	"encoding/json"
-	"log"
 
 	"github.com/umitop/libumi"
 )
@@ -37,8 +36,6 @@ type iStructure interface {
 func ListStructures(bc iBlockchain, _ []byte) (result []byte, errors []byte) {
 	raws, err := bc.ListStructures()
 	if err != nil {
-		log.Print(err.Error())
-
 		return nil, errServiceUnavail
 	}
 
@@ -61,8 +58,6 @@ func GetStructure(bc iBlockchain, params []byte) (result []byte, errors []byte) 
 
 	raw, err := bc.GetStructureByPrefix([]byte(prm.Prefix))
 	if err != nil {
-		log.Println(err.Error())
-
 		return nil, errServiceUnavail
 	}
 
@@ -147,12 +142,15 @@ func (s structure) masterAddress() string {
 
 func (s structure) transitAddresses() (t []string) {
 	l := int(binary.BigEndian.Uint64(s[162:170]))
+	if l == 0 {
+		return t
+	}
 
-	if l > 0 {
-		t = make([]string, l)
-		for i := 0; i < l; i++ {
-			t[i] = (libumi.Address)(s[170+(34*i) : 170+(34*(i+1))]).Bech32()
-		}
+	t = make([]string, l)
+
+	for i := 0; i < l; i++ {
+		a := 170 + (34 * i) //nolint:gomnd
+		t[i] = (libumi.Address)(s[a : a+34]).Bech32()
 	}
 
 	return t

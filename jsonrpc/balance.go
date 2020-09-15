@@ -23,7 +23,6 @@ package jsonrpc
 import (
 	"encoding/binary"
 	"encoding/json"
-	"log"
 
 	"github.com/umitop/libumi"
 )
@@ -49,8 +48,6 @@ func GetBalance(bc iBlockchain, params []byte) (result []byte, errors []byte) {
 
 	raw, err := bc.GetBalance(adr)
 	if err != nil {
-		log.Print(err.Error())
-
 		return nil, errServiceUnavail
 	}
 

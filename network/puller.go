@@ -21,12 +21,12 @@
 package network
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 )
@@ -53,10 +53,7 @@ func pull(ctx context.Context, client *http.Client, bc iBlockchain) {
 		return
 	}
 
-	const tpl = `{"jsonrpc":"2.0","method":"listBlocks","params":{"height":%d,"limit":5000},"id":"%d"}`
-	jsn := fmt.Sprintf(tpl, lstBlkHeight+1, time.Now().UnixNano())
-
-	req, _ := http.NewRequestWithContext(ctx, "POST", peer(), strings.NewReader(jsn))
+	req, _ := http.NewRequestWithContext(ctx, "POST", peer(), marshalPullRequest(lstBlkHeight))
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -73,6 +70,15 @@ func pull(ctx context.Context, client *http.Client, bc iBlockchain) {
 	if processResponse(body, bc) > 0 {
 		pull(ctx, client, bc)
 	}
+}
+
+func marshalPullRequest(height uint64) *bytes.Buffer {
+	const tpl = `{"jsonrpc":"2.0","method":"listBlocks","params":{"height":%d,"limit":5000},"id":"%d"}`
+
+	buf := new(bytes.Buffer)
+	_, _ = fmt.Fprintf(buf, tpl, height+1, time.Now().UnixNano())
+
+	return buf
 }
 
 func processResponse(body []byte, bc iBlockchain) (cnt int) {

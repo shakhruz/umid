@@ -38,7 +38,7 @@ func TestHttpMethodNotAllowed(t *testing.T) {
 	req, _ := http.NewRequestWithContext(ctx, "GET", "/json-rpc", nil)
 
 	res := httptest.NewRecorder()
-	handler := http.HandlerFunc(jsonrpc.CORS(jsonrpc.Filter(rpc.HTTP)))
+	handler := http.HandlerFunc(rpc.JSONRPC())
 	handler.ServeHTTP(res, req)
 
 	if status := res.Code; status != http.StatusMethodNotAllowed {
@@ -63,7 +63,7 @@ func TestHttpEntityTooLarge(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 
 	res := httptest.NewRecorder()
-	handler := http.HandlerFunc(jsonrpc.CORS(jsonrpc.Filter(rpc.HTTP)))
+	handler := http.HandlerFunc(rpc.JSONRPC())
 	handler.ServeHTTP(res, req)
 
 	if status := res.Code; status != http.StatusRequestEntityTooLarge {
@@ -92,7 +92,7 @@ func TestHttpNoContent(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 
 	res := httptest.NewRecorder()
-	handler := http.HandlerFunc(jsonrpc.CORS(jsonrpc.Filter(rpc.HTTP)))
+	handler := http.HandlerFunc(rpc.JSONRPC())
 	handler.ServeHTTP(res, req)
 
 	if status := res.Code; status != http.StatusNoContent {
@@ -118,7 +118,7 @@ func TestHttpEmptyRequest(t *testing.T) {
 	req.Header.Set("Content-Type", "text/plain")
 
 	res := httptest.NewRecorder()
-	handler := http.HandlerFunc(jsonrpc.CORS(jsonrpc.Filter(rpc.HTTP)))
+	handler := http.HandlerFunc(rpc.JSONRPC())
 	handler.ServeHTTP(res, req)
 
 	if status := res.Code; status != http.StatusBadRequest {
@@ -145,7 +145,7 @@ func TestHttpCORS(t *testing.T) {
 	req.Header.Set("Access-Control-Request-Headers", "Content-Type")
 
 	res := httptest.NewRecorder()
-	handler := http.HandlerFunc(jsonrpc.CORS(jsonrpc.Filter(rpc.HTTP)))
+	handler := http.HandlerFunc(rpc.JSONRPC())
 	handler.ServeHTTP(res, req)
 
 	if status := res.Code; status != http.StatusNoContent {
@@ -172,7 +172,7 @@ func TestHttpContext(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 
 	res := httptest.NewRecorder()
-	handler := http.HandlerFunc(jsonrpc.CORS(jsonrpc.Filter(rpc.HTTP)))
+	handler := http.HandlerFunc(rpc.JSONRPC())
 	handler.ServeHTTP(res, req)
 
 	if status := res.Code; status != http.StatusOK {
@@ -199,7 +199,7 @@ func TestHttpTooManyRequests(t *testing.T) {
 	for i := 0; i < 1025; i++ {
 		go func() {
 			res := httptest.NewRecorder()
-			handler := http.HandlerFunc(jsonrpc.CORS(jsonrpc.Filter(rpc.HTTP)))
+			handler := http.HandlerFunc(rpc.JSONRPC())
 			handler.ServeHTTP(res, req)
 		}()
 	}
@@ -207,7 +207,7 @@ func TestHttpTooManyRequests(t *testing.T) {
 	time.Sleep(time.Second)
 
 	res := httptest.NewRecorder()
-	handler := http.HandlerFunc(jsonrpc.CORS(jsonrpc.Filter(rpc.HTTP)))
+	handler := http.HandlerFunc(rpc.JSONRPC())
 	handler.ServeHTTP(res, req)
 
 	if status := res.Code; status != http.StatusTooManyRequests {

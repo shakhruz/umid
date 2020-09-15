@@ -25,7 +25,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
-	"log"
 
 	"github.com/umitop/libumi"
 )
@@ -57,8 +56,6 @@ func ListTransactions(bc iBlockchain, params []byte) (result []byte, errors []by
 
 	raws, err := fun(prm.adr, prm.key, prm.lim)
 	if err != nil {
-		log.Print(err.Error())
-
 		return nil, errServiceUnavail
 	}
 
@@ -226,27 +223,39 @@ func (t tx) feeValue() uint64 {
 	return binary.BigEndian.Uint64(t[164:172])
 }
 
-func (t tx) structure() (jsn []byte) {
+func (t tx) structure() []byte {
 	switch t.version() {
 	case libumi.CreateStructure, libumi.UpdateStructure:
-		jsn, _ = json.Marshal(struct {
-			Prefix        string `json:"prefix"`
-			Name          string `json:"name"`
-			ProfitPercent uint16 `json:"profit_percent"`
-			FeePercent    uint16 `json:"fee_percent"`
-		}{
-			Prefix:        (libumi.Transaction)(t).Prefix(),
-			Name:          (libumi.Transaction)(t).Name(),
-			ProfitPercent: (libumi.Transaction)(t).ProfitPercent(),
-			FeePercent:    (libumi.Transaction)(t).FeePercent(),
-		})
+		return marshalLong(t)
 	case libumi.UpdateFeeAddress, libumi.UpdateProfitAddress, libumi.CreateTransitAddress, libumi.DeleteTransitAddress:
-		jsn, _ = json.Marshal(struct {
-			Prefix string `json:"prefix"`
-		}{
-			Prefix: (libumi.Transaction)(t).Prefix(),
-		})
+		return marshalShort(t)
 	}
+
+	return nil
+}
+
+func marshalLong(t tx) []byte {
+	jsn, _ := json.Marshal(struct {
+		Prefix        string `json:"prefix"`
+		Name          string `json:"name"`
+		ProfitPercent uint16 `json:"profit_percent"`
+		FeePercent    uint16 `json:"fee_percent"`
+	}{
+		Prefix:        (libumi.Transaction)(t).Prefix(),
+		Name:          (libumi.Transaction)(t).Name(),
+		ProfitPercent: (libumi.Transaction)(t).ProfitPercent(),
+		FeePercent:    (libumi.Transaction)(t).FeePercent(),
+	})
+
+	return jsn
+}
+
+func marshalShort(t tx) []byte {
+	jsn, _ := json.Marshal(struct {
+		Prefix string `json:"prefix"`
+	}{
+		Prefix: (libumi.Transaction)(t).Prefix(),
+	})
 
 	return jsn
 }

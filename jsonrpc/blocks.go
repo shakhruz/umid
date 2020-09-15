@@ -22,7 +22,6 @@ package jsonrpc
 
 import (
 	"encoding/json"
-	"log"
 )
 
 type iBlock interface {
@@ -38,8 +37,6 @@ func ListBlocks(bc iBlockchain, params []byte) (result []byte, errors []byte) {
 
 	raws, err := bc.ListBlocksAfterKey(key, lim)
 	if err != nil {
-		log.Print(err.Error())
-
 		return nil, errServiceUnavail
 	}
 

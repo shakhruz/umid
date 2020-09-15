@@ -58,14 +58,7 @@ func push(ctx context.Context, client *http.Client, bc iBlockchain) {
 		return
 	}
 
-	jsn, _ := json.Marshal(txs)
-
-	buf := new(bytes.Buffer)
-	gz := gzip.NewWriter(buf)
-	_, _ = gz.Write(jsn)
-	_ = gz.Close()
-
-	req, _ := http.NewRequestWithContext(ctx, "POST", peer(), buf)
+	req, _ := http.NewRequestWithContext(ctx, "POST", peer(), marshalAndGzip(txs))
 	req.Header.Set("Content-Encoding", "gzip")
 
 	resp, err := client.Do(req)
@@ -90,17 +83,30 @@ func fetchMempool(bc iBlockchain) []json.RawMessage {
 	txs := make([]json.RawMessage, 0)
 
 	for tx := range mem {
-		buf.Reset()
-		buf.WriteString(`{"jsonrpc":"2.0","method":"sendTransaction","params":{"base64":"`)
-		buf.WriteString(base64.StdEncoding.EncodeToString(tx))
-		buf.WriteString(`"},"id":1}`)
-
-		txs = append(txs, buf.Bytes())
-
+		txs = append(txs, marshalPushRequest(tx, buf))
 		if len(txs) >= pushTxsLimit {
 			break
 		}
 	}
 
 	return txs
+}
+
+func marshalAndGzip(txs []json.RawMessage) *bytes.Buffer {
+	buf := new(bytes.Buffer)
+	gz := gzip.NewWriter(buf)
+	jsn, _ := json.Marshal(txs)
+	_, _ = gz.Write(jsn)
+	_ = gz.Close()
+
+	return buf
+}
+
+func marshalPushRequest(tx []byte, buf *bytes.Buffer) []byte {
+	buf.Reset()
+	buf.WriteString(`{"jsonrpc":"2.0","method":"sendTransaction","params":{"base64":"`)
+	buf.WriteString(base64.StdEncoding.EncodeToString(tx))
+	buf.WriteString(`"},"id":1}`)
+
+	return buf.Bytes()
 }
