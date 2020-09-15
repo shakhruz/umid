@@ -22,7 +22,6 @@ package jsonrpc
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"time"
 
@@ -55,7 +54,9 @@ func NewClient(conn *websocket.Conn, req chan<- rawRequest) *Client {
 
 // WebSocket ...
 func (rpc *RPC) WebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := rpc.upgrader.Upgrade(w, r, nil)
+	upgrader := websocket.Upgrader{}
+
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
@@ -69,10 +70,6 @@ func (c *Client) reader() {
 	for {
 		msgType, msg, err := c.conn.ReadMessage()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
-			}
-
 			_ = c.conn.Close()
 			c.cancel()
 
@@ -86,22 +83,21 @@ func (c *Client) reader() {
 }
 
 func (c *Client) writer() {
+	defer func() {
+		_ = c.conn.Close()
+		c.cancel()
+	}()
+
 	for {
 		select {
 		case data := <-c.res:
 			err := c.conn.WriteMessage(websocket.TextMessage, data)
 			if err != nil {
-				log.Println(err.Error())
-
-				_ = c.conn.Close()
-				c.cancel()
-
 				return
 			}
 		case <-c.ctx.Done():
 			data := websocket.FormatCloseMessage(websocket.CloseServiceRestart, "")
 			_ = c.conn.WriteControl(websocket.CloseMessage, data, time.Now().Add(time.Second))
-			_ = c.conn.Close()
 
 			return
 		}

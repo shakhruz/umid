@@ -24,8 +24,6 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
-
-	"github.com/gorilla/websocket"
 )
 
 const (
@@ -75,7 +73,6 @@ type notificationz map[string]func(iBlockchain, []byte)
 // RPC ...
 type RPC struct {
 	blockchain    iBlockchain
-	upgrader      websocket.Upgrader
 	queue         chan rawRequest
 	methods       methodz
 	notifications notificationz
@@ -84,7 +81,6 @@ type RPC struct {
 // NewRPC ...
 func NewRPC() *RPC {
 	return &RPC{
-		upgrader:      websocket.Upgrader{},
 		queue:         make(chan rawRequest, workerQueueLen),
 		methods:       methods(),
 		notifications: notifications(),
