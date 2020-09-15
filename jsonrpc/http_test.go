@@ -33,7 +33,7 @@ import (
 
 func TestHttpMethodNotAllowed(t *testing.T) {
 	ctx := context.Background()
-	rpc := jsonrpc.NewRPC()
+	rpc := jsonrpc.NewRPC(nil)
 
 	req, _ := http.NewRequestWithContext(ctx, "GET", "/json-rpc", nil)
 
@@ -57,7 +57,7 @@ func TestHttpMethodNotAllowed(t *testing.T) {
 
 func TestHttpEntityTooLarge(t *testing.T) {
 	ctx := context.Background()
-	rpc := jsonrpc.NewRPC()
+	rpc := jsonrpc.NewRPC(nil)
 
 	req, _ := http.NewRequestWithContext(ctx, "POST", "/json-rpc", strings.NewReader(strings.Repeat(".", 11*1024*1024)))
 	req.Header.Set("Content-Type", "application/json")
@@ -84,7 +84,7 @@ func TestHttpNoContent(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	rpc := jsonrpc.NewRPC()
+	rpc := jsonrpc.NewRPC(nil)
 	go rpc.Worker(ctx, &sync.WaitGroup{})
 
 	body := strings.NewReader(`{"jsonrpc":"2.0","method":"notify"}`)
@@ -138,7 +138,7 @@ func TestHttpEmptyRequest(t *testing.T) {
 
 func TestHttpCORS(t *testing.T) {
 	ctx := context.Background()
-	rpc := jsonrpc.NewRPC()
+	rpc := jsonrpc.NewRPC(nil)
 
 	req, _ := http.NewRequestWithContext(ctx, "OPTIONS", "/json-rpc", nil)
 	req.Header.Set("Origin", "*")
@@ -165,7 +165,7 @@ func TestHttpContext(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 
-	rpc := jsonrpc.NewRPC()
+	rpc := jsonrpc.NewRPC(nil)
 
 	body := strings.NewReader(`{"jsonrpc":"2.0","method":"listStructures","id":1}`)
 	req, _ := http.NewRequestWithContext(ctx, "POST", "/json-rpc", body)
@@ -190,7 +190,7 @@ func TestHttpContext(t *testing.T) {
 
 func TestHttpTooManyRequests(t *testing.T) {
 	ctx := context.Background()
-	rpc := jsonrpc.NewRPC()
+	rpc := jsonrpc.NewRPC(nil)
 
 	body := strings.NewReader(`{"jsonrpc":"2.0","method":"listStructures","id":1}`)
 	req, _ := http.NewRequestWithContext(ctx, "POST", "/json-rpc", body)
