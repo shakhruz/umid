@@ -30,7 +30,7 @@ type iBlock interface {
 }
 
 // ListBlocks ...
-func ListBlocks(bc iBlock, params []byte) (result []byte, errors []byte) {
+func ListBlocks(bc iBlockchain, params []byte) (result []byte, errors []byte) {
 	key, lim, errs := unmarshalBlocksParams(params)
 	if errs != nil {
 		return nil, errs

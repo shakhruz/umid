@@ -33,7 +33,7 @@ type iBalance interface {
 }
 
 // GetBalance ...
-func GetBalance(bc iBalance, params []byte) (result []byte, errors []byte) {
+func GetBalance(bc iBlockchain, params []byte) (result []byte, errors []byte) {
 	prm := new(struct {
 		Address string `json:"address"`
 	})

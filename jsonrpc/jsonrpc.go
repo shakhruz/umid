@@ -68,13 +68,17 @@ type response struct {
 	ID      json.RawMessage `json:"id"`
 }
 
+type methodz map[string]func(iBlockchain, []byte) (result []byte, errors []byte)
+
+type notificationz map[string]func(iBlockchain, []byte)
+
 // RPC ...
 type RPC struct {
 	blockchain    iBlockchain
 	upgrader      websocket.Upgrader
 	queue         chan rawRequest
-	methods       map[string]func(iBlockchain, []byte) (result []byte, errors []byte)
-	notifications map[string]func(iBlockchain, []byte)
+	methods       methodz
+	notifications notificationz
 }
 
 // NewRPC ...
@@ -109,15 +113,15 @@ func (rpc *RPC) Worker(ctx context.Context, wg *sync.WaitGroup) {
 	}
 }
 
-func methods() map[string]func(iBlockchain, []byte) ([]byte, []byte) {
-	m := make(map[string]func(iBlockchain, []byte) ([]byte, []byte))
+func methods() methodz {
+	m := make(methodz)
 
-	m["getBalance"] = func(b iBlockchain, p []byte) ([]byte, []byte) { return GetBalance(b, p) }
-	m["listStructures"] = func(b iBlockchain, p []byte) ([]byte, []byte) { return ListStructures(b, p) }
-	m["getStructure"] = func(b iBlockchain, p []byte) ([]byte, []byte) { return GetStructure(b, p) }
-	m["listTransactions"] = func(b iBlockchain, p []byte) ([]byte, []byte) { return ListTransactions(b, p) }
-	m["sendTransaction"] = func(b iBlockchain, p []byte) ([]byte, []byte) { return SendTransaction(b, p) }
-	m["listBlocks"] = func(b iBlockchain, p []byte) ([]byte, []byte) { return ListBlocks(b, p) }
+	m["getBalance"] = GetBalance
+	m["listStructures"] = ListStructures
+	m["getStructure"] = GetStructure
+	m["listTransactions"] = ListTransactions
+	m["sendTransaction"] = SendTransaction
+	m["listBlocks"] = ListBlocks
 
 	return m
 }

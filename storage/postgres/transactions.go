@@ -29,6 +29,13 @@ import (
 	"github.com/umitop/libumi"
 )
 
+type strz struct {
+	Prefix        string `json:"prefix"`
+	Name          string `json:"name"`
+	ProfitPercent uint16 `json:"profit_percent"`
+	FeePercent    uint16 `json:"fee_percent"`
+}
+
 // AddTxToMempool ...
 func (s *Postgres) AddTxToMempool(b []byte) error {
 	_, err := s.conn.Exec(context.Background(), `select add_transaction($1)`, b)
@@ -69,23 +76,13 @@ func (s *Postgres) ListTxsByAddressAfterKey(_ []byte, _ []byte, _ uint16) ([][]b
 
 func scanTransaction(row pgx.Row) ([]byte, error) {
 	var (
-		hsh    []byte
-		hgt    uint64
-		tim    time.Time
-		blkHgt uint64
-		txIdx  uint16
-		ver    uint8
-		snd    []byte
-		rcp    []byte
-		val    *uint64
-		feeAdr []byte
-		feeVal *uint64
-		str    struct {
-			Prefix        string `json:"prefix"`
-			Name          string `json:"name"`
-			ProfitPercent uint16 `json:"profit_percent"`
-			FeePercent    uint16 `json:"fee_percent"`
-		}
+		hsh, snd, rcp, feeAdr []byte
+		hgt, blkHgt           uint64
+		tim                   time.Time
+		txIdx                 uint16
+		ver                   uint8
+		val, feeVal           *uint64
+		str                   strz
 	)
 
 	if err := row.Scan(&hsh, &hgt, &tim, &blkHgt, &txIdx, &ver, &snd, &rcp, &val, &feeAdr, &feeVal, &str); err != nil {
@@ -169,12 +166,7 @@ func (t tx) setTxHeight(n uint64) {
 	binary.BigEndian.PutUint64(t[238:246], n)
 }
 
-func (t tx) setStructure(str struct {
-	Prefix        string `json:"prefix"`
-	Name          string `json:"name"`
-	ProfitPercent uint16 `json:"profit_percent"`
-	FeePercent    uint16 `json:"fee_percent"`
-}) {
+func (t tx) setStructure(str strz) {
 	(libumi.Transaction)(t).SetPrefix(str.Prefix)
 	(libumi.Transaction)(t).SetName(str.Name)
 	(libumi.Transaction)(t).SetFeePercent(str.FeePercent)

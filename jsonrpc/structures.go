@@ -34,7 +34,7 @@ type iStructure interface {
 }
 
 // ListStructures ...
-func ListStructures(bc iStructure, _ []byte) (result []byte, errors []byte) {
+func ListStructures(bc iBlockchain, _ []byte) (result []byte, errors []byte) {
 	raws, err := bc.ListStructures()
 	if err != nil {
 		log.Print(err.Error())
@@ -46,7 +46,7 @@ func ListStructures(bc iStructure, _ []byte) (result []byte, errors []byte) {
 }
 
 // GetStructure ...
-func GetStructure(bc iStructure, params []byte) (result []byte, errors []byte) {
+func GetStructure(bc iBlockchain, params []byte) (result []byte, errors []byte) {
 	prm := new(struct {
 		Prefix string `json:"prefix"`
 	})

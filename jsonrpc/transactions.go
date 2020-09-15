@@ -44,7 +44,7 @@ type listTxsParams struct {
 }
 
 // ListTransactions ...
-func ListTransactions(bc iTransaction, params []byte) (result []byte, errors []byte) {
+func ListTransactions(bc iBlockchain, params []byte) (result []byte, errors []byte) {
 	prm, errs := unmarshalTxsParams(params)
 	if errs != nil {
 		return nil, errs
@@ -66,7 +66,7 @@ func ListTransactions(bc iTransaction, params []byte) (result []byte, errors []b
 }
 
 // SendTransaction ...
-func SendTransaction(bc iTransaction, params []byte) (result []byte, errors []byte) {
+func SendTransaction(bc iBlockchain, params []byte) (result []byte, errors []byte) {
 	prm := new(struct {
 		RawTx []byte `json:"base64"`
 	})
