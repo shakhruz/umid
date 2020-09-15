@@ -33,6 +33,11 @@ const (
 	httpMaxRequestTime = 5
 )
 
+// JSONRPC ...
+func (rpc *RPC) JSONRPC() func(http.ResponseWriter, *http.Request) {
+	return CORS(Filter(rpc.HTTP))
+}
+
 // HTTP ...
 func (rpc *RPC) HTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

@@ -52,25 +52,24 @@ func (s *Postgres) Mempool(ctx context.Context) (<-chan []byte, error) {
 func fetcher(ctx context.Context, tx pgx.Tx, c chan<- []byte) {
 	ctz := context.Background()
 
-	defer func() {
-		close(c)
-
-		_ = tx.Rollback(ctz)
-	}()
-
+L:
 	for {
 		raw := make([]byte, 150)
 		row := tx.QueryRow(ctz, `fetch next from cur`)
 
 		if err := row.Scan(&raw); err != nil {
-			return
+			break L
 		}
 
 		select {
 		case c <- raw:
 			continue
 		case <-ctx.Done():
-			return
+			break L
 		}
 	}
+
+	close(c)
+
+	_ = tx.Rollback(ctz)
 }

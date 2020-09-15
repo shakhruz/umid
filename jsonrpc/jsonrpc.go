@@ -79,19 +79,13 @@ type RPC struct {
 }
 
 // NewRPC ...
-func NewRPC() *RPC {
+func NewRPC(bc iBlockchain) *RPC {
 	return &RPC{
+		blockchain:    bc,
 		queue:         make(chan rawRequest, workerQueueLen),
 		methods:       methods(),
 		notifications: notifications(),
 	}
-}
-
-// SetBlockchain ...
-func (rpc *RPC) SetBlockchain(bc iBlockchain) *RPC {
-	rpc.blockchain = bc
-
-	return rpc
 }
 
 // Worker ...

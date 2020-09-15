@@ -41,17 +41,11 @@ type Network struct {
 }
 
 // NewNetwork ...
-func NewNetwork() *Network {
+func NewNetwork(bc iBlockchain) *Network {
 	return &Network{
-		client: newClient(),
+		blockchain: bc,
+		client:     newClient(),
 	}
-}
-
-// SetBlockchain ...
-func (net *Network) SetBlockchain(bc iBlockchain) *Network {
-	net.blockchain = bc
-
-	return net
 }
 
 // Worker ...

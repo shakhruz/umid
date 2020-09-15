@@ -23,7 +23,6 @@ package jsonrpc
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -83,22 +82,16 @@ func (c *Client) reader() {
 }
 
 func (c *Client) writer() {
-	defer func() {
-		_ = c.conn.Close()
-		c.cancel()
-	}()
-
 	for {
 		select {
 		case data := <-c.res:
 			err := c.conn.WriteMessage(websocket.TextMessage, data)
 			if err != nil {
+				_ = c.conn.Close()
+
 				return
 			}
 		case <-c.ctx.Done():
-			data := websocket.FormatCloseMessage(websocket.CloseServiceRestart, "")
-			_ = c.conn.WriteControl(websocket.CloseMessage, data, time.Now().Add(time.Second))
-
 			return
 		}
 	}

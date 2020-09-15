@@ -22,7 +22,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -34,18 +33,16 @@ import (
 )
 
 func main() {
-	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
 	db := storage.NewStorage()
 	bc := blockchain.NewBlockchain(db)
-	rpc := jsonrpc.NewRPC().SetBlockchain(bc)
-	net := network.NewNetwork().SetBlockchain(bc)
+	rpc := jsonrpc.NewRPC(bc)
+	net := network.NewNetwork(bc)
 	srv := network.NewServer()
 
-	http.HandleFunc("/json-rpc", jsonrpc.CORS(jsonrpc.Filter(rpc.HTTP)))
+	http.HandleFunc("/json-rpc", rpc.JSONRPC())
 	http.HandleFunc("/json-rpc-ws", rpc.WebSocket)
 
 	go db.Worker(ctx, wg)
@@ -54,13 +51,17 @@ func main() {
 	go net.Worker(ctx, wg)
 	go srv.Serve()
 
-	sigint := make(chan os.Signal, 1)
-	signal.Notify(sigint, os.Interrupt)
-	<-sigint
+	waitForSignal()
 
 	srv.DrainConnections()
 	cancel()
 	srv.Shutdown()
 
 	wg.Wait()
+}
+
+func waitForSignal() {
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt)
+	<-sig
 }
