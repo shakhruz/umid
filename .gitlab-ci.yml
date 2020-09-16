@@ -80,11 +80,11 @@ test:
   after_script:
     - sed -i 's/umid\///g' c.out
     - ./cc-test-reporter after-build
-    - go get github.com/jstemmer/go-junit-report
-    - go test ./... -v 2>&1 | go-junit-report -set-exit-code > junit.xml
     - go get github.com/t-yuki/gocover-cobertura
     - gocover-cobertura < c.out > cobertura.xml
     - bash <(curl -sSL https://coverage.codacy.com/get.sh)
+    - go get github.com/jstemmer/go-junit-report
+    - go test ./... -v 2>&1 | go-junit-report -set-exit-code > junit.xml
   coverage: '/coverage: \d+.\d+% of statements/'
   artifacts:
     reports:
