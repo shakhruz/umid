@@ -132,7 +132,7 @@ golangci:
     - git config --global user.signingkey "${GPG_KEY}"
     - git config --global pull.ff only
     - git config --global merge.ff only
-    - git config --global autocrlf true
+    - git config --global core.autocrlf true
     - git clone git@gitlab.com:${CI_PROJECT_PATH}.git repo
     - cd repo
     - bump2version ${VERSION_PART}
