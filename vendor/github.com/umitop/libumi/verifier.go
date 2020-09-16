@@ -317,7 +317,7 @@ func blkVersionIsValid(v uint8) error {
 }
 
 func merkleRootIsValid(b []byte) error {
-	mrk, err := CalculateMerkleRoot(b)
+	mrk, err := calculateMerkleRoot(b)
 	if err != nil {
 		return err
 	}
@@ -384,10 +384,10 @@ func allTransactionsAreValid(b []byte) (err error) {
 	return err
 }
 
-func fillQueue(b []byte) <-chan []byte {
+func fillQueue(b []byte) <-chan Transaction {
 	blk := (Block)(b)
 	n := blk.TxCount()
-	c := make(chan []byte, n)
+	c := make(chan Transaction, n)
 
 	for i, l := uint16(0), n; i < l; i++ {
 		c <- blk.Transaction(i)
@@ -398,9 +398,9 @@ func fillQueue(b []byte) <-chan []byte {
 	return c
 }
 
-func validateQueue(c <-chan []byte, err *error) {
+func validateQueue(c <-chan Transaction, err *error) {
 	for tx := range c {
-		if VerifyTransaction(tx) != nil {
+		if tx.Verify() != nil {
 			*err = ErrInvalidTx
 
 			return

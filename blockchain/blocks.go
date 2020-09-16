@@ -23,7 +23,6 @@ package blockchain
 import (
 	"encoding/hex"
 	"errors"
-	"log"
 
 	"github.com/umitop/libumi"
 )
@@ -69,13 +68,18 @@ func (b *block) VerifyBlock(raw []byte) error {
 		return errInvalidLength
 	}
 
-	if _, ok := b.approvedKeys[string(blk.PublicKey())]; !ok {
-		log.Printf("block %X has invalid public key\n", (libumi.Block)(raw).Hash())
-
+	if !b.VerifyPublicKey(blk.PublicKey()) {
 		return errInvalidPubKey
 	}
 
-	return libumi.VerifyBlock(raw)
+	return blk.Verify()
+}
+
+// VerifyPublicKey ...
+func (b *block) VerifyPublicKey(key []byte) (ok bool) {
+	_, ok = b.approvedKeys[string(key)]
+
+	return ok
 }
 
 // ValidateBlock ...
@@ -96,6 +100,13 @@ type block struct {
 }
 
 func newBlock(db iBlock) (b block) {
+	return block{
+		db:           db,
+		approvedKeys: approvedKeys(),
+	}
+}
+
+func approvedKeys() map[string]struct{} {
 	keys := []string{
 		"45885c9687d799a4d1f4d786d8639274d293ed024ad7f7a436715d6217c9f72b",
 	}
@@ -107,8 +118,5 @@ func newBlock(db iBlock) (b block) {
 		keyz[string(k)] = struct{}{}
 	}
 
-	return block{
-		db:           db,
-		approvedKeys: keyz,
-	}
+	return keyz
 }

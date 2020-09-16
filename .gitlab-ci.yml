@@ -78,7 +78,6 @@ test:
   script:
     - go test ./... -coverprofile=c.out -covermode count
   after_script:
-    - sed -i 's/github.com\/umitop\/libumi\///g' c.out
     - ./cc-test-reporter after-build
     - go get github.com/jstemmer/go-junit-report
     - go test -v 2>&1 | go-junit-report -set-exit-code > junit.xml

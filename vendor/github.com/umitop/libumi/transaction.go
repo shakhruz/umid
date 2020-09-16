@@ -21,9 +21,8 @@
 package libumi
 
 import (
-	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/binary"
-	"time"
 )
 
 // TxLength ...
@@ -44,12 +43,11 @@ const (
 // Transaction ...
 type Transaction []byte
 
-// NewTransaction ...
-func NewTransaction() Transaction {
-	tx := make(Transaction, TxLength)
-	tx.SetVersion(Basic)
+// Hash ...
+func (t Transaction) Hash() []byte {
+	h := sha256.Sum256(t)
 
-	return tx
+	return h[:]
 }
 
 // Version ...
@@ -57,23 +55,9 @@ func (t Transaction) Version() uint8 {
 	return t[0]
 }
 
-// SetVersion ...
-func (t Transaction) SetVersion(n uint8) Transaction {
-	t[0] = n
-
-	return t
-}
-
 // Sender ...
 func (t Transaction) Sender() Address {
 	return Address(t[1:35])
-}
-
-// SetSender ...
-func (t Transaction) SetSender(a Address) Transaction {
-	copy(t[1:35], a)
-
-	return t
 }
 
 // Recipient ...
@@ -81,23 +65,9 @@ func (t Transaction) Recipient() Address {
 	return Address(t[35:69])
 }
 
-// SetRecipient ...
-func (t Transaction) SetRecipient(a Address) Transaction {
-	copy(t[35:69], a)
-
-	return t
-}
-
 // Value ...
 func (t Transaction) Value() uint64 {
 	return binary.BigEndian.Uint64(t[69:77])
-}
-
-// SetValue ...
-func (t Transaction) SetValue(n uint64) Transaction {
-	binary.BigEndian.PutUint64(t[69:77], n)
-
-	return t
 }
 
 // Prefix ...
@@ -105,23 +75,9 @@ func (t Transaction) Prefix() string {
 	return versionToPrefix(binary.BigEndian.Uint16(t[35:37]))
 }
 
-// SetPrefix ...
-func (t Transaction) SetPrefix(s string) Transaction {
-	binary.BigEndian.PutUint16(t[35:37], prefixToVersion(s))
-
-	return t
-}
-
 // ProfitPercent ...
 func (t Transaction) ProfitPercent() uint16 {
 	return binary.BigEndian.Uint16(t[37:39])
-}
-
-// SetProfitPercent ...
-func (t Transaction) SetProfitPercent(n uint16) Transaction {
-	binary.BigEndian.PutUint16(t[37:39], n)
-
-	return t
 }
 
 // FeePercent ...
@@ -129,47 +85,32 @@ func (t Transaction) FeePercent() uint16 {
 	return binary.BigEndian.Uint16(t[39:41])
 }
 
-// SetFeePercent ...
-func (t Transaction) SetFeePercent(p uint16) Transaction {
-	binary.BigEndian.PutUint16(t[39:41], p)
-
-	return t
-}
-
 // Name ...
 func (t Transaction) Name() string {
 	return string(t[42:(42 + t[41])])
 }
 
-// SetName ...
-func (t Transaction) SetName(s string) Transaction {
-	t[41] = uint8(len(s))
-	copy(t[42:77], s)
-
-	return t
+// Nonce ...
+func (t Transaction) Nonce() uint64 {
+	return binary.BigEndian.Uint64(t[77:85])
 }
 
-// SignTransaction ...
-func SignTransaction(t []byte, sec []byte) {
-	setTxNonce(t, uint64(time.Now().UnixNano()))
-	setTxSignature(t, ed25519.Sign(sec, t[0:85]))
+// Signature ...
+func (t Transaction) Signature() []byte {
+	return t[85:149]
 }
 
-// VerifyTransaction ...
-func VerifyTransaction(t []byte) error {
+// Verify ...
+func (t Transaction) Verify() error {
 	return assert(t,
-		lengthIs(TxLength),
-		versionIsValid,
+		lengthIs(TxLength), versionIsValid,
 
 		ifVersionIsGenesis(
-			senderPrefixIs(genesis),
-			recipientPrefixIs(umi),
+			senderPrefixIs(genesis), recipientPrefixIs(umi),
 		),
 
 		ifVersionIsBasic(
-			senderAndRecipientNotEqual,
-			senderPrefixValidAndNot(genesis),
-			recipientPrefixValidAndNot(genesis),
+			senderAndRecipientNotEqual, senderPrefixValidAndNot(genesis), recipientPrefixValidAndNot(genesis),
 		),
 
 		ifVersionIsCreateOrUpdateStruct(
@@ -181,18 +122,9 @@ func VerifyTransaction(t []byte) error {
 		),
 
 		ifVersionIsUpdateAddress(
-			senderPrefixIs(umi),
-			recipientPrefixValidAndNot(genesis, umi),
+			senderPrefixIs(umi), recipientPrefixValidAndNot(genesis, umi),
 		),
 
 		signatureIsValid,
 	)
-}
-
-func setTxNonce(t []byte, n uint64) {
-	binary.BigEndian.PutUint64(t[77:85], n)
-}
-
-func setTxSignature(t []byte, sig []byte) {
-	copy(t[85:149], sig)
 }

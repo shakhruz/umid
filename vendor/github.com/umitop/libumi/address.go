@@ -22,7 +22,6 @@ package libumi
 
 import (
 	"encoding/binary"
-	"strings"
 )
 
 // AddressLength ...
@@ -36,26 +35,16 @@ const (
 // Address ...
 type Address []byte
 
-// NewAddress ...
-func NewAddress() Address {
-	adr := make(Address, AddressLength)
-	adr.SetVersion(umi)
-
-	return adr
-}
-
 // NewAddressFromBech32 ...
-func NewAddressFromBech32(s string) (Address, error) {
+func NewAddressFromBech32(s string) (adr Address, err error) {
 	pfx, pub, err := bech32Decode(s)
 	if err != nil {
-		return nil, err
+		return adr, err
 	}
 
-	adr := NewAddress()
-	adr.SetPrefix(pfx)
-	adr.SetPublicKey(pub)
+	adr = NewAddressBuilder().SetPrefix(pfx).SetPublicKey(pub).Build()
 
-	return adr, nil
+	return adr, err
 }
 
 // Bech32 ...
@@ -68,23 +57,9 @@ func (a Address) Version() uint16 {
 	return binary.BigEndian.Uint16(a[0:2])
 }
 
-// SetVersion ...
-func (a Address) SetVersion(v uint16) Address {
-	binary.BigEndian.PutUint16(a, v)
-
-	return a
-}
-
 // Prefix ...
 func (a Address) Prefix() string {
 	return versionToPrefix(binary.BigEndian.Uint16(a[0:2]))
-}
-
-// SetPrefix ...
-func (a Address) SetPrefix(s string) Address {
-	binary.BigEndian.PutUint16(a[0:2], prefixToVersion(s))
-
-	return a
 }
 
 // PublicKey ...
@@ -92,50 +67,10 @@ func (a Address) PublicKey() []byte {
 	return a[2:34]
 }
 
-// SetPublicKey ...
-func (a Address) SetPublicKey(b []byte) Address {
-	copy(a[2:34], b)
-
-	return a
-}
-
-// VerifyAddress ...
-func VerifyAddress(b []byte) error {
-	return assert(b,
+// Verify ...
+func (a Address) Verify() error {
+	return assert(a,
 		lengthIs(AddressLength),
 		versionIsValid,
 	)
-}
-
-func prefixToVersion(s string) (v uint16) {
-	if s != pfxGenesis {
-		for i := range s {
-			v |= setChrToVer(s[i], i)
-		}
-	}
-
-	return v
-}
-
-func setChrToVer(c byte, i int) uint16 {
-	return (uint16(c) - 96) << ((2 - i) * 5)
-}
-
-func versionToPrefix(v uint16) string {
-	if v == genesis {
-		return pfxGenesis
-	}
-
-	var s strings.Builder
-
-	s.Grow(pfxLen)
-	s.WriteByte(getChrFromVer(v, 0))
-	s.WriteByte(getChrFromVer(v, 1))
-	s.WriteByte(getChrFromVer(v, 2))
-
-	return s.String()
-}
-
-func getChrFromVer(v uint16, i int) byte {
-	return byte(v>>((2-i)*5))&31 + 96
 }

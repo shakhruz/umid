@@ -125,18 +125,18 @@ func (t tx) setVersion(v uint8) {
 }
 
 func (t tx) setSender(b []byte) {
-	(libumi.Transaction)(t).SetSender(b)
+	(libumi.TransactionBuilder)(t).SetSender(b)
 }
 
 func (t tx) setRecipient(b []byte) {
 	if len(b) != 0 {
-		(libumi.Transaction)(t).SetRecipient(b)
+		(libumi.TransactionBuilder)(t).SetRecipient(b)
 	}
 }
 
 func (t tx) setValue(n *uint64) {
 	if n != nil {
-		(libumi.Transaction)(t).SetValue(*n)
+		(libumi.TransactionBuilder)(t).SetValue(*n)
 	}
 }
 
@@ -167,8 +167,8 @@ func (t tx) setTxHeight(n uint64) {
 }
 
 func (t tx) setStructure(str strz) {
-	(libumi.Transaction)(t).SetPrefix(str.Prefix)
-	(libumi.Transaction)(t).SetName(str.Name)
-	(libumi.Transaction)(t).SetFeePercent(str.FeePercent)
-	(libumi.Transaction)(t).SetProfitPercent(str.ProfitPercent)
+	(libumi.TransactionBuilder)(t).SetPrefix(str.Prefix)
+	(libumi.TransactionBuilder)(t).SetName(str.Name)
+	(libumi.TransactionBuilder)(t).SetFeePercent(str.FeePercent)
+	(libumi.TransactionBuilder)(t).SetProfitPercent(str.ProfitPercent)
 }
