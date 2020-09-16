@@ -35,7 +35,7 @@ build:
     - docker:stable-dind
   variables:
     IMAGE_TAG_HUB: ${CI_PROJECT_PATH}
-    IMAGE_TAG_GITLAB: ${CI_REGISTRY_IMAGE}/${CI_PROJECT_PATH}
+    IMAGE_TAG_GITLAB: ${CI_REGISTRY_IMAGE}
     IMAGE_TAG_GITHUB: docker.pkg.github.com/${CI_PROJECT_PATH}/${CI_PROJECT_NAME}
   before_script:
     - echo "${CI_REGISTRY_PASSWORD}" | docker login -u ${CI_REGISTRY_USER} --password-stdin ${CI_REGISTRY}

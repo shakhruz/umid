@@ -127,7 +127,7 @@ func marshalPushRequest(tx []byte, buf *bytes.Buffer) []byte {
 	buf.Reset()
 	buf.WriteString(`{"jsonrpc":"2.0","method":"sendTransaction","params":{"base64":"`)
 	buf.WriteString(base64.StdEncoding.EncodeToString(tx))
-	buf.WriteString(`"},"id":1}`)
+	buf.WriteString(`"},"id":"1"}`)
 
 	return buf.Bytes()
 }
