@@ -99,11 +99,10 @@ func fetchMempool(bc iBlockchain) []json.RawMessage {
 		return nil
 	}
 
-	buf := new(bytes.Buffer)
 	txs := make([]json.RawMessage, 0)
 
 	for tx := range mem {
-		txs = append(txs, marshalPushRequest(tx, buf))
+		txs = append(txs, marshalPushRequest(tx))
 		if len(txs) >= pushTxsLimit {
 			break
 		}
@@ -123,11 +122,11 @@ func marshalAndGzip(txs []json.RawMessage) *bytes.Buffer {
 	return buf
 }
 
-func marshalPushRequest(tx []byte, buf *bytes.Buffer) []byte {
-	buf.Reset()
-	buf.WriteString(`{"jsonrpc":"2.0","method":"sendTransaction","params":{"base64":"`)
-	buf.WriteString(base64.StdEncoding.EncodeToString(tx))
-	buf.WriteString(`"},"id":"1"}`)
+func marshalPushRequest(tx []byte) []byte {
+	var b bytes.Buffer
+	b.WriteString(`{"jsonrpc":"2.0","method":"sendTransaction","params":{"base64":"`)
+	b.WriteString(base64.StdEncoding.EncodeToString(tx))
+	b.WriteString(`"},"id":"1"}`)
 
-	return buf.Bytes()
+	return b.Bytes()
 }
