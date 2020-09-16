@@ -124,6 +124,7 @@ func marshalAndGzip(txs []json.RawMessage) *bytes.Buffer {
 
 func marshalPushRequest(tx []byte) []byte {
 	var b bytes.Buffer
+
 	b.WriteString(`{"jsonrpc":"2.0","method":"sendTransaction","params":{"base64":"`)
 	b.WriteString(base64.StdEncoding.EncodeToString(tx))
 	b.WriteString(`"},"id":"1"}`)
