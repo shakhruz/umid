@@ -26,13 +26,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 )
 
 const (
 	httpWriteTimeoutSec = 15
 	httpIdleTimeoutSec  = 60
-	drainingTimeoutSec  = 1
 )
 
 // Server ...
@@ -92,7 +92,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 // DrainConnections ...
 func (s *Server) DrainConnections() {
 	s.Readiness = false
+	timeout := 1
 
-	log.Printf("drain connections (%d sec)\n", drainingTimeoutSec)
-	time.Sleep(drainingTimeoutSec * time.Second)
+	if val, ok := os.LookupEnv("DRAINING_TIMEOUT"); ok {
+		if i, err := strconv.Atoi(val); err == nil {
+			timeout = i
+		}
+	}
+
+	log.Printf("drain connections (%d sec)\n", timeout)
+	time.Sleep(time.Duration(timeout) * time.Second)
 }

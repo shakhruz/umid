@@ -36,7 +36,7 @@ type Postgres struct {
 
 // NewStorage ...
 func NewStorage() *Postgres {
-	cfg, err := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
+	cfg, err := pgxpool.ParseConfig(os.Getenv("DATABASE"))
 	if err != nil {
 		log.Fatal(err.Error())
 	}

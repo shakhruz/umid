@@ -35,7 +35,7 @@ import (
 
 const (
 	pushIntervalSec = 5
-	pushTxsLimit    = 10_000
+	pushTxsLimit    = 1000
 )
 
 func (net *Network) pusher(ctx context.Context, wg *sync.WaitGroup) {
@@ -47,11 +47,31 @@ func (net *Network) pusher(ctx context.Context, wg *sync.WaitGroup) {
 		case <-ctx.Done():
 			return
 		case <-time.After(pushIntervalSec * time.Second):
-			push(ctx, net.client, net.blockchain)
+			legacyPush(ctx, net.client, net.blockchain)
 		}
 	}
 }
 
+func legacyPush(ctx context.Context, client *http.Client, bc iBlockchain) {
+	txs := fetchMempool(bc)
+	if len(txs) == 0 {
+		return
+	}
+
+	for _, body := range txs {
+		req, _ := http.NewRequestWithContext(ctx, "POST", peer(), bytes.NewReader(body))
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return
+		}
+
+		_, _ = io.Copy(ioutil.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}
+}
+
+//nolint:deadcode,unused
 func push(ctx context.Context, client *http.Client, bc iBlockchain) {
 	txs := fetchMempool(bc)
 	if len(txs) == 0 {
@@ -92,6 +112,7 @@ func fetchMempool(bc iBlockchain) []json.RawMessage {
 	return txs
 }
 
+//nolint:unused
 func marshalAndGzip(txs []json.RawMessage) *bytes.Buffer {
 	buf := new(bytes.Buffer)
 	gz := gzip.NewWriter(buf)

@@ -26,8 +26,9 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"syscall"
+	"umid/api/jsonrpc"
 	"umid/blockchain"
-	"umid/jsonrpc"
 	"umid/network"
 	"umid/storage"
 )
@@ -62,6 +63,6 @@ func main() {
 
 func waitForSignal() {
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt)
+	signal.Notify(sig, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	<-sig
 }

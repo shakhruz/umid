@@ -28,7 +28,7 @@ import (
 	"sync"
 	"testing"
 	"time"
-	"umid/jsonrpc"
+	"umid/api/jsonrpc"
 )
 
 func TestHttpMethodNotAllowed(t *testing.T) {

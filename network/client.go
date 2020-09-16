@@ -38,7 +38,7 @@ type transport struct {
 }
 
 func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Set("User-Agent", "UMId/0.0.1")
+	req.Header.Set("User-Agent", "UMId/0.0.3")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Connection", "keep-alive")
 
