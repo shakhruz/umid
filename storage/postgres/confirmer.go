@@ -62,4 +62,10 @@ func confirm(ctx context.Context, conn *pgxpool.Pool) {
 	if blkHeight != 0 {
 		confirm(ctx, conn)
 	}
+
+	sql := `delete from mempool mm where mm.hash in (select m.hash from mempool m join transaction t on m.hash = t.hash)`
+	_, err = conn.Exec(context.Background(), sql)
+	if err != nil {
+		log.Println(err.Error())
+	}
 }
