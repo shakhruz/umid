@@ -92,6 +92,11 @@ func (bc *transaction) ListTxsByAddressBeforeKey(adr []byte, key []byte, lim uin
 func (bc *transaction) VerifyTransaction(raw []byte) error {
 	tx := (libumi.Transaction)(raw)
 
+	// guard
+	if tx[149] != 0 {
+		return errInvalidValue
+	}
+
 	if err := tx.Verify(); err != nil {
 		return err
 	}

@@ -1,4 +1,4 @@
-FROM golang:1.15 AS build
+FROM golang:1.17 AS build
 WORKDIR /go/src/github.com/umitop/umid/
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -trimpath -mod vendor -ldflags '-s -w -extldflags "-static"' -tags netgo -o umid .
