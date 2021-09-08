@@ -1,0 +1,288 @@
+run:
+  # default concurrency is a available CPU number
+  concurrency: 4
+
+  # timeout for analysis, e.g. 30s, 5m, default is 1m
+  deadline: 1m
+
+  # include test files or not, default is true
+  tests: false
+
+  # default is true. Enables skipping of directories:
+  #   vendor$, third_party$, testdata$, examples$, Godeps$, builtin$
+  skip-dirs-use-default: false
+
+  # which dirs to skip: issues from them won't be reported;
+  skip-dirs:
+    - pkg/openlibm
+
+linters:
+  fast: false
+  enable-all: true
+  disable:
+    # The linter 'scopelint' is deprecated. Replaced by exportloopref.
+    - scopelint
+    # The linter 'maligned' is deprecated. Replaced by govet 'fieldalignment'.
+    - maligned
+    # The linter 'interfacer' is deprecated.
+    - interfacer
+    # The linter 'golint' is deprecated. Replaced by revive.
+    - golint
+    - dupl
+    # This linter is meant to be used only for special cases. It is not recommended to use it for all files in a project.
+    - exhaustivestruct
+    - exhaustive
+    - gci
+    # fix
+    - gomnd
+
+# all available settings of specific linters
+linters-settings:
+  errcheck:
+    # report about not checking of errors in type assertions: `a := b.(MyStruct)`;
+    # default is false: such cases aren't reported by default.
+    check-type-assertions: true
+
+    # report about assignment of errors to blank identifier: `num, _ := strconv.Atoi(numStr)`;
+    # default is false: such cases aren't reported by default.
+    check-blank: false
+
+    # [deprecated] comma-separated list of pairs of the form pkg:regex
+    # the regex is used to ignore names within pkg. (default "fmt:.*").
+    # see https://github.com/kisielk/errcheck#the-deprecated-method for details
+    ignore: fmt:.*,io/ioutil:^Read.*
+
+  errorlint:
+    # Check whether fmt.Errorf uses the %w verb for formatting errors. See the readme for caveats
+    errorf: true
+
+    # Check for plain type assertions and type switches
+    asserts: true
+
+    # Check for plain error comparisons
+    comparison: true
+
+  gocognit:
+    # minimal code complexity to report, 30 by default (but we recommend 10-20)
+    min-complexity: 20
+
+  gocyclo:
+    # minimal code complexity to report, 30 by default (but we recommend 10-20)
+    min-complexity: 20
+
+  gofumpt:
+    # Select the Go version to target. The default is `1.15`.
+    lang-version: "1.16"
+
+    # Choose whether or not to use the extra rules that are disabled by default
+    extra-rules: true
+
+  goheader:
+    template: |-
+      Copyright (c) 2021 UMI
+
+      Permission is hereby granted, free of charge, to any person obtaining a copy
+      of this software and associated documentation files (the "Software"), to deal
+      in the Software without restriction, including without limitation the rights
+      to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+      copies of the Software, and to permit persons to whom the Software is
+      furnished to do so, subject to the following conditions:
+
+      The above copyright notice and this permission notice shall be included in all
+      copies or substantial portions of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+      AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+      OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+      SOFTWARE.
+
+  gomnd:
+    settings:
+      mnd:
+        # the list of enabled checks, see https://github.com/tommy-muehle/go-mnd/#checks for description.
+        # checks: argument,case,condition,operation,return,assign
+        # ignored-numbers: 1000
+        # ignored-files: magic_.*.go
+        # ignored-functions: math.*
+
+  gomodguard:
+    allowed:
+      modules:
+        - gitlab.com/umitop/libumi
+        - gitlab.com/umitop/umid
+    blocked:
+      local_replace_directives: true
+
+  gosimple:
+    # Select the Go version to target. The default is '1.13'.
+    go: "1.16"
+
+    # https://staticcheck.io/docs/options#checks
+    checks: [ "all" ]
+
+  govet:
+    check-shadowing: true
+    enable-all: true
+    disable:
+      - fieldalignment
+
+  maligned:
+    # print struct with more effective memory layout or not, false by default
+    suggest-new: true
+
+  misspell:
+    # Correct spellings using locale preferences for US or UK.
+    # Default is to use a neutral variety of English.
+    # Setting locale to US will correct the British spelling of 'colour' to 'color'.
+    locale: US
+
+  nolintlint:
+    # Enable to ensure that nolint directives are all used. Default is true.
+    allow-unused: false
+
+    # Disable to ensure that nolint directives don't have a leading space. Default is true.
+    allow-leading-space: false
+
+    # Exclude following linters from requiring an explanation.  Default is [].
+    allow-no-explanation: []
+
+    # Enable to require an explanation of nonzero length after each nolint directive. Default is false.
+    require-explanation: true
+
+    # Enable to require nolint directives to mention the specific linter being suppressed. Default is false.
+    require-specific: true
+
+  revive:
+    # see https://github.com/mgechev/revive#available-rules for details.
+    ignore-generated-header: true
+    severity: warning
+    rules:
+      # Disallows the usage of basic types in context.WithValue.
+      - name: context-keys-type
+      # Conventions around the naming of time variables.
+      - name: time-naming
+      # Reduces redundancies around variable declaration.
+      - name: var-declaration
+      # Warns when a public return is from unexported type.
+      - name: unexported-return
+      # Should replace errors.New(fmt.Sprintf()) with fmt.Errorf()
+      - name: errorf
+      # Disallows blank imports
+      - name: blank-imports
+      # context.Context should be the first argument of a function.
+      - name: context-as-argument
+      # Forbids . imports.
+      - name: dot-imports
+      # The error return parameter should be last.
+      - name: error-return
+      # Conventions around error strings.
+      - name: error-strings
+      # Naming of error variables.
+      - name: error-naming
+      # Naming and commenting conventions on exported symbols.
+      - name: exported
+      # Redundant if when returning an error.
+      - name: if-return
+      # Use i++ and i-- instead of i += 1 and i -= 1.
+      - name: increment-decrement
+      # Naming rules.
+      - name: var-naming
+      # Package commenting conventions.
+      - name: package-comments
+      # Prevents redundant variables when iterating over a collection.
+      - name: range
+      # Conventions around the naming of receivers.
+      - name: receiver-naming
+      # Prevents redundant else statements.
+      - name: indent-error-flow
+      # Specifies the maximum number of arguments a function can receive
+      - name: argument-limit
+        arguments: 4
+      # Sets restriction for maximum Cyclomatic complexity.
+      - name: cyclomatic
+        arguments: 10
+      # The maximum number of public structs in a file.
+      # - name: max-public-structs
+      #   arguments: 3
+      # Warns on empty code blocks
+      - name: empty-block
+      # Prevents redundant else statements (extends indent-error-flow)
+      - name: superfluous-else
+      # Warns on methods with names that differ only by capitalization
+      - name: confusing-naming
+      # Warns on getters that do not yield any result
+      - name: get-return
+      # Warns on assignments to function parameters
+      - name: modifies-parameter
+      # Suggests to name potentially confusing function results
+      - name: confusing-results
+      # Looks for program exits in funcs other than main() or init()
+      - name: deep-exit
+      # Suggests to rename or remove unused function parameters
+      - name: unused-parameter
+      # Warns on unreachable code
+      - name: unreachable-code
+      # Suggests using constant for magic numbers and string literals
+      # - name: add-constant
+      # Warns on boolean parameters that create a control coupling
+      - name: flag-parameter
+      # Suggests removing or simplifying unnecessary statements
+      - name: unnecessary-stmt
+      # Checks common struct tags like json,xml,yaml
+      - name: struct-tag
+      # Warns on assignments to value-passed method receivers
+      - name: modifies-value-receiver
+      # Warns on constant logical expressions
+      - name: constant-logical-expr
+      # Suggests removing Boolean literals from logic expressions
+      - name: bool-literal-in-expr
+      # Warns on redefinitions of builtin identifiers
+      - name: redefines-builtin-id
+      # Specifies the maximum number of results a function can return
+      - name: function-result-limit
+        arguments: 3
+      # Warns if range value is used in a closure dispatched as goroutine
+      - name: range-val-in-closure
+      # Warns if address of range value is used dangerously
+      - name: range-val-address
+      # Warns on functions taking sync.WaitGroup as a by-value parameter
+      - name: waitgroup-by-value
+      # Check for common mistaken usages of the sync/atomic package
+      - name: atomic
+      # Warns when there are heading or trailing newlines in a block
+      - name: empty-lines
+      # Warns on explicit call to the garbage collector
+      - name: call-to-gc
+      # Looks for packages that are imported two or more times
+      - name: duplicated-imports
+      # Spots identifiers that shadow an import
+      - name: import-shadowing
+      # Warns on bare returns
+      - name: bare-return
+      # Suggests to rename or remove unused method receivers
+      - name: unused-receiver
+      # Warns on unhandled errors returned by funcion calls
+      - name: unhandled-error
+      # Sets restriction for maximum Cognitive complexity.
+      - name: cognitive-complexity
+        arguments: 20
+      # Warns on suspicious casts from int to string
+      - name: string-of-int
+      # Warns on specific string literals that fail one or more user-configured regular expressions
+      - name: string-format
+      # Spots if-then-else statements that can be refactored to simplify code reading
+      - name: early-return
+      # Warns on function calls that will lead to (direct) infinite recursion
+      - name: unconditional-recursion
+      # Spots if-then-else statements with identical then and else branches
+      - name: identical-branches
+      # Warns on some defer gotchas
+      - name: defer
+      # Warns on wrongly named un-exported symbols
+      - name: unexported-naming
+      # Warns on functions exceeding the statements or lines max
+      - name: function-length
+        arguments: [40,60]
