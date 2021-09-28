@@ -1,3 +1,9 @@
 # umid
 
-```go build -o umid -trimpath -ldflags "-s -w -extldflags '-static'" -tags netgo ./cmd/umid```
+## Install:
+
+https://pkg.umi.top
+
+## Build:
+
+```go build -o umid ./cmd/umid```

@@ -141,6 +141,8 @@ func processListBlocksRaw(r *http.Request, blockchain storage.IBlockchain) (*Lis
 
 	blocks := make([][]byte, 0, lastIndex-firstIndex+1)
 
+	txs := 0
+
 	for i := firstIndex; i < lastIndex; i++ {
 		height := uint32(i) + 1
 
@@ -150,6 +152,11 @@ func processListBlocksRaw(r *http.Request, blockchain storage.IBlockchain) (*Lis
 		}
 
 		blocks = append(blocks, block.Legacy())
+
+		txs += block.TransactionCount()
+		if txs >= 65535 {
+			break
+		}
 	}
 
 	data := &ListBlocksRawData{

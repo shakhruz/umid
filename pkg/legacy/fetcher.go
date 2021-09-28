@@ -99,7 +99,7 @@ func newRequestBody(height uint32, limit int) *bytes.Buffer {
 }
 
 func (fetcher *Fetcher) fetchBlocks(ctx context.Context) int {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
 	url := fmt.Sprintf("%s/json-rpc", fetcher.config.Peer)
