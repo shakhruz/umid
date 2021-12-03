@@ -132,6 +132,7 @@ func (confirmer *Confirmer) ProcessBlock(blockRaw []byte) error {
 		umi.TxChangeFeeAddress:    confirmer.processChangeFeeAddress,
 		umi.TxActivateTransit:     confirmer.processActivateTransit,
 		umi.TxDeactivateTransit:   confirmer.processDeactivateTransit,
+		umi.TxBurn:                confirmer.processBurn,
 	}
 
 	for txIndex, txCount := 0, block.TransactionCount(); txIndex < txCount; txIndex++ {
@@ -446,6 +447,15 @@ func (confirmer *Confirmer) processDeactivateTransit(transaction umi.Transaction
 	return err
 }
 
+func (confirmer *Confirmer) processBurn(transaction umi.Transaction) error {
+	sender := transaction.Sender()
+	amount := transaction.Amount()
+
+	// Уменьшаем баланс отправителя и увеличиваем его счетчик транзакций.
+	// Возвращаем ошибку в случае, если аккаунт не существует или баланс меньше чем сумма транзакции.
+	return confirmer.decreaseAccountBalance(sender, amount)
+}
+
 // increaseAccountBalance увеличивает баланс счета, связанного с адресом на указанную сумму
 // и увеличивает счетчик транзакций. Перед операцией баланс аккаунта считается по временной
 // метке обрабатываемого блока.
@@ -757,13 +767,11 @@ func (confirmer *Confirmer) Commit() error {
 		confirmer.ledger.structures[prefix] = structure
 
 		if ok && ((old.ProfitPercent != structure.ProfitPercent) || (old.FeePercent != structure.FeePercent)) {
-			// log.Println("сменился процент!",
-			// 	structure.Prefix, confirmer.BlockHeight, old.ProfitPercent, "->", structure.ProfitPercent)
 			confirmer.updateLevelAddresses(prefix)
 		}
 	}
 
-	// Добавляем хэши транзакций
+	// Добавляем хеши транзакций
 	for _, hash := range confirmer.txHashes {
 		confirmer.ledger.transactions[hash] = struct{}{}
 	}
@@ -773,101 +781,20 @@ func (confirmer *Confirmer) Commit() error {
 	confirmer.ledger.LastBlockHash = confirmer.BlockHash
 	confirmer.ledger.LastTransactionHeight = confirmer.TransactionHeight
 
-	confirmer.checkStructureLevel()
+	confirmer.checkStaking()
 
 	return nil
 }
 
-func (confirmer *Confirmer) checkStructureLevel() {
-	type level struct {
-		balance      uint64
-		interestRate uint16
+func (confirmer *Confirmer) checkStaking() {
+	switch {
+	case confirmer.ledger.LastBlockHeight < 5_393_000:
+		confirmer.checkStructureLevel()
+
+	// Stop staking.
+	case confirmer.ledger.LastBlockHeight == 5_393_000:
+		confirmer.stopStaking()
 	}
 
-	levels := [...]level{
-		10: {1_000_000_000_00, 41_00},
-		9:  {500_000_000_00, 39_00},
-		8:  {100_000_000_00, 37_00},
-		7:  {50_000_000_00, 36_00},
-		6:  {10_000_000_00, 35_00},
-		5:  {5_000_000_00, 30_00},
-		4:  {1_000_000_00, 25_00},
-		3:  {500_000_00, 20_00},
-		2:  {100_000_00, 15_00},
-		1:  {50_000_00, 10_00},
-		0:  {0, 0},
-	}
-
-	for pfx, structure := range confirmer.ledger.structures {
-		if pfx == umi.PfxVerUmi {
-			continue
-		}
-
-		timestamp := confirmer.BlockTimestamp
-		balance := structure.BalanceAt(timestamp)
-
-		for lvl := 10; lvl >= 0; lvl-- {
-			newLevel := uint8(lvl)
-			newInterestRate := levels[lvl].interestRate
-
-			if balance >= levels[lvl].balance {
-				if structure.Level != newLevel {
-					structure.Balance = balance
-					structure.UpdatedAt = timestamp
-					structure.Level = newLevel
-					structure.LevelInterestRate = newInterestRate
-
-					confirmer.updateLevelAddresses(pfx)
-				}
-
-				break
-			}
-		}
-	}
+	confirmer.checkGlize()
 }
-
-func (confirmer *Confirmer) updateLevelAddresses(pfx umi.Prefix) {
-	timestamp := confirmer.BlockTimestamp
-	structure := confirmer.ledger.structures[pfx]
-
-	// log.Printf("%s изменение уровня %d на высоте %d %d",
-	//	pfx.String(), structure.Level, confirmer.BlockHeight, structure.Balance)
-
-	for _, acc := range confirmer.ledger.accounts[pfx] {
-		acc.SetInterestRate(structure.InterestRate(acc.Type), timestamp)
-	}
-}
-
-/*
-func (confirmer *Confirmer) verifyCompositeBalance(addr umi.Address) bool {
-	timestamp := confirmer.BlockTimestamp
-	acc, _ := confirmer.Account(addr)
-
-	switch acc.Type {
-	case umi.Dev:
-		structure, _ := confirmer.Structure(addr.Prefix())
-		profit, _ := confirmer.Account(structure.ProfitAddress)
-		deductibleBalance := profit.BalanceAt(timestamp)
-
-		if acc.Balance < deductibleBalance {
-			log.Println(acc.Type.String(), addr.String(), acc.Balance, deductibleBalance,
-				deductibleBalance-acc.Balance, confirmer.BlockHeight)
-		}
-
-		return acc.Balance >= deductibleBalance
-
-	case umi.Profit:
-		structure, _ := confirmer.Structure(addr.Prefix())
-		deductibleBalance := structure.BalanceAt(timestamp)
-
-		if acc.Balance < deductibleBalance {
-			log.Println(acc.Type.String(), addr.String(), acc.Balance, deductibleBalance,
-				deductibleBalance-acc.Balance, confirmer.BlockHeight)
-		}
-
-		return acc.Balance >= deductibleBalance
-	}
-
-	return true
-}
-*/

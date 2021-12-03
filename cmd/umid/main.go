@@ -72,7 +72,7 @@ func main() {
 	event := events.NewEvents()
 
 	go func() {
-		t := time.Now()
+		currentTime := time.Now()
 
 		log.Println("scanning blockchain...")
 
@@ -80,7 +80,7 @@ func main() {
 			log.Fatal(err)
 		}
 
-		log.Printf("found %d blocks, time: %v.", blockchain.Height(), time.Since(t))
+		log.Printf("found %d blocks, time: %v.", blockchain.Height(), time.Since(currentTime))
 
 		if blockchain.Height() == 0 {
 			if err := confirmer.AppendBlock(storage.GenesisBlock(conf.Network)); err != nil {

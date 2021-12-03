@@ -37,6 +37,7 @@ type iSubscriber interface {
 
 type iLedger interface {
 	Account(address umi.Address) (account *ledger.Account, ok bool)
+	Structure(prefix umi.Prefix) (structure *ledger.Structure, ok bool)
 	HasTransaction(hash umi.Hash) bool
 }
 
@@ -255,13 +256,42 @@ func (mempool *Mempool) cleanup() {
 	defer mempool.Unlock()
 
 	for hash, transaction := range mempool.transactions {
+		txTimestamp := transaction.Timestamp()
+
+		// Транзакция из будущего.
+		if txTimestamp > timestamp {
+			mempool.remove(hash)
+
+			continue
+		}
+
+		// Просроченная транзакция.
+		if timestamp-txTimestamp > 3600 {
+			mempool.remove(hash)
+
+			continue
+		}
+
+		// Баланс отправителя не существует.
 		account, ok := mempool.ledger.Account(transaction.Sender())
 		if !ok {
 			mempool.remove(hash)
+
+			continue
 		}
 
+		// На балансе недостаточно монет.
 		if account.BalanceAt(timestamp) < transaction.Amount() {
 			mempool.remove(hash)
+
+			continue
+		}
+
+		// Структура получателя не существует.
+		if _, ok := mempool.ledger.Structure(transaction.Recipient().Prefix()); !ok {
+			mempool.remove(hash)
+
+			continue
 		}
 	}
 }

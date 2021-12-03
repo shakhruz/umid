@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 
+	"gitlab.com/umitop/umid/pkg/restapi/handler"
 	"gitlab.com/umitop/umid/pkg/umi"
 )
 
@@ -67,6 +68,10 @@ func (syncer *Syncer) batch() http.HandlerFunc {
 			}
 
 			if err := transaction.Verify(); err != nil {
+				continue
+			}
+
+			if err := handler.TxValidate(transaction); err != nil {
 				continue
 			}
 

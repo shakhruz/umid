@@ -23,7 +23,9 @@ package handler
 import (
 	"crypto/ed25519"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"time"
 
 	"gitlab.com/umitop/umid/pkg/umi"
 )
@@ -82,7 +84,7 @@ func verifyCreateTransactionRequest(request *CreateTransactionRequest) *Error {
 	}
 
 	if len(*request.Seed) != 32 {
-		return NewError(-1, "Длина 'seed' должна быть 32 байта.")
+		return NewError(-1, fmt.Sprintf("Длина 'seed' должна быть 32 байта. Получено %d байт.", len(*request.Seed)))
 	}
 
 	if request.Type == nil {
@@ -90,7 +92,7 @@ func verifyCreateTransactionRequest(request *CreateTransactionRequest) *Error {
 	}
 
 	switch *request.Type {
-	case umi.TxSend:
+	case umi.TxSend, umi.TxGenesis:
 		return verifyTxSend(request)
 
 	case umi.TxCreateStructure, umi.TxUpdateStructure:
@@ -98,6 +100,9 @@ func verifyCreateTransactionRequest(request *CreateTransactionRequest) *Error {
 
 	case umi.TxChangeProfitAddress, umi.TxChangeFeeAddress, umi.TxActivateTransit, umi.TxDeactivateTransit:
 		return verifyTxAddress(request)
+
+	case umi.TxBurn:
+		return verifyTxBurn(request)
 
 	default:
 		return NewError(-1, "Некорректное значение параметра 'type'.")
@@ -165,8 +170,8 @@ func verifyTxStructure(request *CreateTransactionRequest) *Error {
 		return NewError(-1, "Параметр 'description' является обязательным.")
 	}
 
-	if len(*request.Description) > 53 {
-		return NewError(-1, "Длина 'description' не может превышать 53 байта.")
+	if len(*request.Description) > 35 {
+		return NewError(-1, "Длина 'description' не может превышать 35 байт.")
 	}
 
 	if request.ProfitPercent == nil {
@@ -188,7 +193,23 @@ func verifyTxAddress(request *CreateTransactionRequest) *Error {
 	return verifyRecipient(request)
 }
 
-func buildTransaction(request *CreateTransactionRequest) umi.Transaction {
+func verifyTxBurn(request *CreateTransactionRequest) *Error {
+	if err := verifySender(request); err != nil {
+		return err
+	}
+
+	if request.Amount == nil {
+		return NewError(-1, "Для транзакции имеющий тип 'burn' параметр 'amount' является обязательным.")
+	}
+
+	if *request.Amount == 0 {
+		return NewError(-1, "Значение параметра 'amount' должно быть больше нуля.")
+	}
+
+	return nil
+}
+
+func buildTransaction(request *CreateTransactionRequest) umi.Transaction { //nolint:funlen,revive // Временно
 	transaction := umi.NewTransaction()
 
 	sender, _ := umi.ParseAddress(*request.SenderAddress)
@@ -196,45 +217,69 @@ func buildTransaction(request *CreateTransactionRequest) umi.Transaction {
 	transaction.SetSender(sender)
 
 	switch *request.Type {
+	case umi.TxGenesis:
+		recipient, _ := umi.ParseAddress(*request.RecipientAddress)
+
+		transaction.SetVersion(umi.TxV0Genesis)
+		transaction.SetRecipient(recipient)
+		transaction.SetAmount(*request.Amount)
+
 	case umi.TxSend:
 		recipient, _ := umi.ParseAddress(*request.RecipientAddress)
 
-		transaction.SetVersion(umi.TxV1Send)
+		transaction.SetVersion(umi.TxV8Send)
 		transaction.SetRecipient(recipient)
 		transaction.SetAmount(*request.Amount)
 
 	case umi.TxCreateStructure:
-		transaction.SetVersion(umi.TxV2CreateStructure)
+		transaction.SetVersion(umi.TxV9CreateStructure)
+		transaction.SetPrefix(umi.ParsePrefix(*request.Prefix))
+		transaction.SetProfitPercent(*request.ProfitPercent)
+		transaction.SetFeePercent(*request.FeePercent)
+		transaction.SetDescription(*request.Description)
 
 	case umi.TxUpdateStructure:
-		transaction.SetVersion(umi.TxV3UpdateStructure)
+		transaction.SetVersion(umi.TxV10UpdateStructure)
+		transaction.SetPrefix(umi.ParsePrefix(*request.Prefix))
+		transaction.SetProfitPercent(*request.ProfitPercent)
+		transaction.SetFeePercent(*request.FeePercent)
+		transaction.SetDescription(*request.Description)
 
 	case umi.TxChangeProfitAddress:
 		recipient, _ := umi.ParseAddress(*request.RecipientAddress)
 
-		transaction.SetVersion(umi.TxV4ChangeProfitAddress)
+		transaction.SetVersion(umi.TxV11ChangeProfitAddress)
 		transaction.SetRecipient(recipient)
 
 	case umi.TxChangeFeeAddress:
 		recipient, _ := umi.ParseAddress(*request.RecipientAddress)
 
-		transaction.SetVersion(umi.TxV5ChangeFeeAddress)
+		transaction.SetVersion(umi.TxV12ChangeFeeAddress)
 		transaction.SetRecipient(recipient)
 
 	case umi.TxActivateTransit:
 		recipient, _ := umi.ParseAddress(*request.RecipientAddress)
 
-		transaction.SetVersion(umi.TxV6ActivateTransit)
+		transaction.SetVersion(umi.TxV13ActivateTransit)
 		transaction.SetRecipient(recipient)
 
 	case umi.TxDeactivateTransit:
 		recipient, _ := umi.ParseAddress(*request.RecipientAddress)
 
-		transaction.SetVersion(umi.TxV7DeactivateTransit)
+		transaction.SetVersion(umi.TxV14DeactivateTransit)
 		transaction.SetRecipient(recipient)
+
+	case umi.TxBurn:
+		transaction.SetVersion(umi.TxV15Burn)
+		transaction.SetAmount(*request.Amount)
 	}
 
-	copy(transaction[85:149], ed25519.Sign(*request.Seed, transaction[0:85]))
+	timestamp := uint32(time.Now().Unix())
+	transaction.SetTimestamp(timestamp)
+	transaction.SetNonce(uint32(time.Now().Nanosecond()))
+
+	secKey := ed25519.NewKeyFromSeed(*request.Seed)
+	copy(transaction[86:150], ed25519.Sign(secKey, transaction[0:86]))
 
 	return transaction
 }

@@ -202,15 +202,15 @@ func (bc *Blockchain) Transaction(blockHeight uint32, txIndex uint16) (umi.Trans
 		return nil, false
 	}
 
-	b := make([]byte, 6)
+	data := make([]byte, 6)
 	off := 14 * (blockHeight - 1)
 
-	if _, err := bc.indexFile.ReadAt(b, int64(off)); err != nil {
+	if _, err := bc.indexFile.ReadAt(data, int64(off)); err != nil {
 		return nil, false
 	}
 
-	chunk := binary.BigEndian.Uint16(b[0:2])
-	offset := binary.BigEndian.Uint32(b[2:6]) + umi.HdrLength + (umi.TxConfirmedLength * uint32(txIndex))
+	chunk := binary.BigEndian.Uint16(data[0:2])
+	offset := binary.BigEndian.Uint32(data[2:6]) + umi.HdrLength + (umi.TxConfirmedLength * uint32(txIndex))
 
 	transaction := make([]byte, umi.TxConfirmedLength)
 

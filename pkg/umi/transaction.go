@@ -42,6 +42,13 @@ const (
 	TxV6ActivateTransit
 	TxV7DeactivateTransit
 	TxV8Send
+	TxV9CreateStructure
+	TxV10UpdateStructure
+	TxV11ChangeProfitAddress
+	TxV12ChangeFeeAddress
+	TxV13ActivateTransit
+	TxV14DeactivateTransit
+	TxV15Burn
 )
 
 const (
@@ -53,6 +60,7 @@ const (
 	TxChangeFeeAddress    = "changeFeeAddress"
 	TxActivateTransit     = "activateTransit"
 	TxDeactivateTransit   = "deactivateTransit"
+	TxBurn                = "burn"
 	txUnknown             = "unknown"
 )
 
@@ -66,24 +74,26 @@ func (transaction Transaction) Hash() Hash {
 	return sha256.Sum256(transaction[0:150])
 }
 
-func (transaction Transaction) Type() string {
+func (transaction Transaction) Type() string { //nolint:revive,cyclop // Easy to read and understand
 	switch transaction[0] {
 	case TxV0Genesis:
 		return TxGenesis
 	case TxV1Send, TxV8Send:
 		return TxSend
-	case TxV2CreateStructure:
+	case TxV2CreateStructure, TxV9CreateStructure:
 		return TxCreateStructure
-	case TxV3UpdateStructure:
+	case TxV3UpdateStructure, TxV10UpdateStructure:
 		return TxUpdateStructure
-	case TxV4ChangeProfitAddress:
+	case TxV4ChangeProfitAddress, TxV11ChangeProfitAddress:
 		return TxChangeProfitAddress
-	case TxV5ChangeFeeAddress:
+	case TxV5ChangeFeeAddress, TxV12ChangeFeeAddress:
 		return TxChangeFeeAddress
-	case TxV6ActivateTransit:
+	case TxV6ActivateTransit, TxV13ActivateTransit:
 		return TxActivateTransit
-	case TxV7DeactivateTransit:
+	case TxV7DeactivateTransit, TxV14DeactivateTransit:
 		return TxDeactivateTransit
+	case TxV15Burn:
+		return TxBurn
 	default:
 		return txUnknown
 	}
@@ -125,10 +135,10 @@ func (transaction Transaction) SetRecipient(recipient Address) Transaction {
 
 func (transaction Transaction) Amount() uint64 {
 	switch transaction.Type() {
-	case "genesis", "send":
+	case TxGenesis, TxSend, TxBurn:
 		return binary.BigEndian.Uint64(transaction[69:77])
 
-	case "createStructure":
+	case TxCreateStructure:
 		return 50_000_00
 
 	default:
@@ -142,16 +152,54 @@ func (transaction Transaction) SetAmount(amount uint64) Transaction {
 	return transaction
 }
 
+func (transaction Transaction) Timestamp() uint32 {
+	return binary.BigEndian.Uint32(transaction[77:81])
+}
+
+func (transaction Transaction) SetTimestamp(epoch uint32) Transaction {
+	binary.BigEndian.PutUint32(transaction[77:81], epoch)
+
+	return transaction
+}
+
+func (transaction Transaction) Nonce() uint32 {
+	return binary.BigEndian.Uint32(transaction[81:85])
+}
+
+func (transaction Transaction) SetNonce(nonce uint32) Transaction {
+	binary.BigEndian.PutUint32(transaction[81:85], nonce)
+
+	return transaction
+}
+
 func (transaction Transaction) Prefix() Prefix {
 	return (Prefix)(binary.BigEndian.Uint16(transaction[35:37]))
+}
+
+func (transaction Transaction) SetPrefix(pfx Prefix) Transaction {
+	binary.BigEndian.PutUint16(transaction[35:37], (uint16)(pfx))
+
+	return transaction
 }
 
 func (transaction Transaction) ProfitPercent() uint16 {
 	return binary.BigEndian.Uint16(transaction[37:39])
 }
 
+func (transaction Transaction) SetProfitPercent(val uint16) Transaction {
+	binary.BigEndian.PutUint16(transaction[37:39], val)
+
+	return transaction
+}
+
 func (transaction Transaction) FeePercent() uint16 {
 	return binary.BigEndian.Uint16(transaction[39:41])
+}
+
+func (transaction Transaction) SetFeePercent(val uint16) Transaction {
+	binary.BigEndian.PutUint16(transaction[39:41], val)
+
+	return transaction
 }
 
 func (transaction Transaction) Description() (description string) {
@@ -162,6 +210,17 @@ func (transaction Transaction) Description() (description string) {
 	description = string(transaction[strLow:strHigh])
 
 	return description
+}
+
+func (transaction Transaction) SetDescription(description string) Transaction {
+	strLen := len(description)
+	strLow := 42
+	strHigh := strLow + strLen
+
+	transaction[41] = uint8(strLen)
+	copy(transaction[strLow:strHigh], description)
+
+	return transaction
 }
 
 // meta
@@ -322,7 +381,7 @@ func (transaction Transaction) SetFeeAccountTransactionCount(height uint64) {
 
 func (transaction Transaction) HasRecipient() bool {
 	switch transaction.Type() {
-	case TxCreateStructure, TxUpdateStructure:
+	case TxCreateStructure, TxUpdateStructure, TxBurn:
 		return false
 	default:
 		return true
@@ -372,6 +431,8 @@ func (transaction Transaction) MarshalJSON() ([]byte, error) {
 		Description   *string `json:"description,omitempty"`
 		ProfitPercent *uint16 `json:"profitPercent,omitempty"`
 		FeePercent    *uint16 `json:"feePercent,omitempty"`
+
+		Timestamp *string `json:"timestamp,omitempty"`
 	}{
 		Hash:          transaction.Hash().String(),
 		Type:          transaction.Type(),
@@ -449,7 +510,7 @@ func (transaction Transaction) MarshalJSON() ([]byte, error) {
 	}
 
 	switch transaction.Type() {
-	case "createStructure", "updateStructure":
+	case TxCreateStructure, TxUpdateStructure:
 		data.Prefix = new(string)
 		*data.Prefix = transaction.Prefix().String()
 
@@ -461,6 +522,11 @@ func (transaction Transaction) MarshalJSON() ([]byte, error) {
 
 		data.FeePercent = new(uint16)
 		*data.FeePercent = transaction.FeePercent()
+	}
+
+	if transaction.Version() >= TxV8Send {
+		data.Timestamp = new(string)
+		*data.Timestamp = time.Unix(int64(transaction.Timestamp()), 0).UTC().Format(time.RFC3339)
 	}
 
 	return json.Marshal(data) //nolint:wrapcheck // ...

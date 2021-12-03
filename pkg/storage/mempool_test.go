@@ -61,6 +61,10 @@ func NewLedgerMock() *mockLedger {
 	}
 }
 
+func (mock *mockLedger) Structure(prefix umi.Prefix) (structure *ledger.Structure, ok bool) {
+	panic("implement me")
+}
+
 func (mock *mockLedger) Account(address umi.Address) (account *ledger.Account, ok bool) {
 	return &ledger.Account{
 		Type:             umi.Umi,

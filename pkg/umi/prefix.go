@@ -29,6 +29,8 @@ const (
 	PfxVerUmi     Prefix = 0x55A9
 	PfxVerRoy     Prefix = 0x49F9
 	PfxVerIsp     Prefix = 0x2670
+	PfxVerGls     Prefix = 0x1d93
+	PfxVerGlz     Prefix = 0x1d9a
 
 	pfxGenesis string = "genesis"
 )

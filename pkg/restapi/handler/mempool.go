@@ -22,10 +22,19 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"gitlab.com/umitop/umid/pkg/umi"
+)
+
+var (
+	errTimestampFuture     = errors.New("некорректная метка времени: транзакция из будущего")
+	errTimestampPast       = errors.New("некорректная метка времени: просроченная траназкция")
+	errProhibitedRecipient = errors.New("некорректный получатель")
 )
 
 type PushMempoolResponse struct {
@@ -180,8 +189,17 @@ func processPushMempool(r *http.Request, mempool iMempool) (*umi.Transaction, *E
 	}
 
 	transaction := (umi.Transaction)(request.Data)
+	txVer := transaction.Version()
+
+	if txVer < umi.TxV8Send || txVer > umi.TxV15Burn {
+		return nil, NewError(400, "Unsupported tx version")
+	}
 
 	if err := transaction.Verify(); err != nil {
+		return nil, NewError(400, err.Error())
+	}
+
+	if err := TxValidate(transaction); err != nil {
 		return nil, NewError(400, err.Error())
 	}
 
@@ -190,4 +208,42 @@ func processPushMempool(r *http.Request, mempool iMempool) (*umi.Transaction, *E
 	}
 
 	return &transaction, nil
+}
+
+func TxValidate(transaction umi.Transaction) error {
+	currentTime := uint32(time.Now().Unix())
+	txTime := transaction.Timestamp()
+
+	if txTime > currentTime {
+		return errTimestampFuture
+	}
+
+	if currentTime-txTime > 3600 {
+		return errTimestampPast
+	}
+
+	if transaction.Version() != umi.TxV8Send {
+		return nil
+	}
+
+	senderPrefix := transaction.Sender().Prefix()
+	recipientPrefix := transaction.Recipient().Prefix()
+
+	switch senderPrefix {
+	case umi.PfxVerGls, umi.PfxVerGlz:
+		switch recipientPrefix {
+		case umi.PfxVerGls, umi.PfxVerGlz:
+			return nil
+		}
+
+		return fmt.Errorf("%w: с адреса '%s' можно отправить только на адрес 'gls' и 'glz'",
+			errProhibitedRecipient, senderPrefix.String())
+	}
+
+	if recipientPrefix == umi.PfxVerUmi {
+		return nil
+	}
+
+	return fmt.Errorf("%w: с адреса '%s' можно отправить только на адрес 'umi'",
+		errProhibitedRecipient, senderPrefix.String())
 }

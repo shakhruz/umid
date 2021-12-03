@@ -110,14 +110,14 @@ func CheckOrCreateDir(fsx iFS, path string) error {
 }
 
 func OpenOrCreateFile(fsx iFS, name string, size int) (file IFile, err error) {
-	fi, err := fsx.Stat(name)
+	fileInfo, err := fsx.Stat(name)
 
 	if err == nil {
-		if fi.IsDir() {
+		if fileInfo.IsDir() {
 			return nil, ErrIsDir
 		}
 
-		if fi.Size() != int64(size) {
+		if fileInfo.Size() != int64(size) {
 			return nil, ErrSize
 		}
 

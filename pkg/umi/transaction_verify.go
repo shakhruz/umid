@@ -41,6 +41,9 @@ func (transaction Transaction) Verify() error {
 
 	case TxChangeProfitAddress, TxChangeFeeAddress, TxActivateTransit, TxDeactivateTransit:
 		return verifyAddress(transaction)
+
+	case TxBurn:
+		return verifyBurn(transaction)
 	}
 
 	return nil
@@ -143,6 +146,20 @@ func verifyAddress(transaction Transaction) error {
 	switch transaction.Recipient().Prefix() {
 	case PfxVerGenesis, PfxVerUmi:
 		return fmt.Errorf("%w: recipient must not be 'genesis' and 'umi'", ErrVerify)
+	}
+
+	if !verifySignature(transaction) {
+		return fmt.Errorf("%w: invalid signature", ErrVerify)
+	}
+
+	return nil
+}
+
+func verifyBurn(transaction Transaction) error {
+	sender := transaction.Sender()
+
+	if sender.Prefix() == PfxVerGenesis {
+		return fmt.Errorf("%w: sender must not be 'genesis'", ErrVerify)
 	}
 
 	if !verifySignature(transaction) {

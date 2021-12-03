@@ -65,12 +65,12 @@ func (pusher *Pusher) Worker(ctx context.Context) {
 	for {
 		select {
 		case tx := <-pusher.queue:
-			pusher.push([]*umi.Transaction{tx})
+			pusher.push(ctx, []*umi.Transaction{tx})
 
 		case <-ticker.C:
 			txs := pusher.mempool.Mempool()
 			if len(txs) > 0 {
-				pusher.push(txs)
+				pusher.push(ctx, txs)
 			}
 
 		case <-ctx.Done():
@@ -79,13 +79,13 @@ func (pusher *Pusher) Worker(ctx context.Context) {
 	}
 }
 
-func (pusher *Pusher) push(txs []*umi.Transaction) {
+func (pusher *Pusher) push(ctx context.Context, txs []*umi.Transaction) {
 	url := fmt.Sprintf("%s/json-rpc", pusher.config.Peer)
 
 	for _, transaction := range txs {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx2, cancel := context.WithTimeout(ctx, time.Second)
 		requestBody := newPushRequest(*transaction)
-		request, _ := http.NewRequestWithContext(ctx, http.MethodPost, url, requestBody)
+		request, _ := http.NewRequestWithContext(ctx2, http.MethodPost, url, requestBody)
 
 		response, err := pusher.client.Do(request)
 		if err != nil {

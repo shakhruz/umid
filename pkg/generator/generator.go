@@ -66,7 +66,6 @@ func (generator *Generator) Worker(ctx context.Context) {
 func (generator *Generator) generateBlock() {
 	timestamp := uint32(time.Now().Unix())
 	transactions := generator.mempool.Mempool()
-
 	generator.confirmer.ResetState()
 	generator.confirmer.BlockTimestamp = timestamp
 
@@ -93,6 +92,7 @@ func (generator *Generator) generateBlock() {
 			umi.TxChangeFeeAddress:    generator.processChangeFeeAddress,
 			umi.TxActivateTransit:     generator.processActivateTransit,
 			umi.TxDeactivateTransit:   generator.processDeactivateTransit,
+			umi.TxBurn:                generator.processBurn,
 		}
 
 		processor, ok := processors[transaction.Type()]
@@ -347,6 +347,28 @@ func (generator *Generator) processDeactivateTransit(transaction umi.Transaction
 	}
 
 	if _, err := generator.confirmer.ProcessDeactivateTransitLegacy(transaction); err != nil {
+		log.Printf("ошибка: %v", err)
+
+		return false, fmt.Errorf("%w", err)
+	}
+
+	return true, nil
+}
+
+func (generator *Generator) processBurn(transaction umi.Transaction, _ uint32) (bool, error) {
+	sender := transaction.Sender()
+
+	senderAccount, ok := generator.confirmer.Account(sender)
+	if !ok {
+		return false, nil
+	}
+
+	availableBalance := generator.confirmer.AvailableBalance(sender, senderAccount)
+	if availableBalance < transaction.Amount() {
+		return false, nil
+	}
+
+	if _, err := generator.confirmer.ProcessBurnLegacy(transaction); err != nil {
 		log.Printf("ошибка: %v", err)
 
 		return false, fmt.Errorf("%w", err)

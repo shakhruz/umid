@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+//go:build !windows
 // +build !windows
 
 package storage
@@ -286,7 +287,7 @@ func (bc *BlockchainMmap) insertBlock(height uint32, block []byte) error {
 func (bc *BlockchainMmap) FastScan() {
 	log.Println("blockchain: fast scan start")
 
-	t := time.Now()
+	currentTime := time.Now()
 
 	for {
 		off := bc.lastBlockHeight * 8
@@ -300,7 +301,7 @@ func (bc *BlockchainMmap) FastScan() {
 		}
 
 		low := binary.BigEndian.Uint32(data[0:4])      // начало блока
-		crc32sum := binary.BigEndian.Uint32(data[4:8]) // котрольная сумма
+		crc32sum := binary.BigEndian.Uint32(data[4:8]) // контрольная сумма
 		high := binary.BigEndian.Uint32(data[8:12])    // конец блока
 
 		if high <= low || high-low > 9830417 {
@@ -330,5 +331,5 @@ func (bc *BlockchainMmap) FastScan() {
 		bc.lastBlockTime = block.Timestamp()
 	}
 
-	log.Println("blockchain: fast scan done", time.Since(t), bc.lastBlockHeight)
+	log.Println("blockchain: fast scan done", time.Since(currentTime), bc.lastBlockHeight)
 }
