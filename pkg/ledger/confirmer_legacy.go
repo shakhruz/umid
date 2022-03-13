@@ -78,6 +78,7 @@ func (confirmer *ConfirmerLegacy) ProcessBlockLegacy(blockLegacyRaw []byte) (umi
 		umi.TxActivateTransit:     confirmer.ProcessActivateTransitLegacy,
 		umi.TxDeactivateTransit:   confirmer.ProcessDeactivateTransitLegacy,
 		umi.TxBurn:                confirmer.ProcessBurnLegacy,
+		umi.TxIssue:               confirmer.ProcessIssueLegacy,
 	}
 
 	for txIndex, txCount := 0, block.TransactionCount(); txIndex < txCount; txIndex++ {
@@ -204,9 +205,18 @@ func (confirmer *ConfirmerLegacy) ProcessBurnLegacy(transaction umi.Transaction)
 		return nil, err
 	}
 
-	sender := transaction.Sender()
+	confirmer.setTxSender(transaction, transaction.Sender())
 
-	confirmer.setTxSender(transaction, sender)
+	return transaction, nil
+}
+
+func (confirmer *ConfirmerLegacy) ProcessIssueLegacy(transaction umi.Transaction) (umi.Transaction, error) {
+	if err := confirmer.processIssue(transaction); err != nil {
+		return nil, err
+	}
+
+	confirmer.setTxSender(transaction, transaction.Sender())
+	confirmer.setTxRecipient(transaction, transaction.Recipient())
 
 	return transaction, nil
 }

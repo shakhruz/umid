@@ -115,8 +115,10 @@ func (mempool *Mempool) Push(transaction umi.Transaction) error {
 		return fmt.Errorf("%w: sender account not found", ErrMempool)
 	}
 
-	if senderAccount.BalanceAt(uint32(time.Now().Unix())) < transaction.Amount() {
-		return fmt.Errorf("%w: insufficient funds", ErrMempool)
+	if transaction.Version() != umi.TxV16Issue {
+		if senderAccount.BalanceAt(uint32(time.Now().Unix())) < transaction.Amount() {
+			return fmt.Errorf("%w: insufficient funds", ErrMempool)
+		}
 	}
 
 	mempool.insert(hash, &transaction)

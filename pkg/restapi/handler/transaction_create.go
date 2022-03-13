@@ -104,6 +104,9 @@ func verifyCreateTransactionRequest(request *CreateTransactionRequest) *Error {
 	case umi.TxBurn:
 		return verifyTxBurn(request)
 
+	case umi.TxIssue:
+		return verifyTxIssue(request)
+
 	default:
 		return NewError(-1, "Некорректное значение параметра 'type'.")
 	}
@@ -209,6 +212,22 @@ func verifyTxBurn(request *CreateTransactionRequest) *Error {
 	return nil
 }
 
+func verifyTxIssue(request *CreateTransactionRequest) *Error {
+	if err := verifySender(request); err != nil {
+		return err
+	}
+
+	if request.Amount == nil {
+		return NewError(-1, "Для транзакции имеющий тип 'issue' параметр 'amount' является обязательным.")
+	}
+
+	if *request.Amount == 0 {
+		return NewError(-1, "Значение параметра 'amount' должно быть больше нуля.")
+	}
+
+	return nil
+}
+
 func buildTransaction(request *CreateTransactionRequest) umi.Transaction { //nolint:funlen,revive // Временно
 	transaction := umi.NewTransaction()
 
@@ -271,6 +290,13 @@ func buildTransaction(request *CreateTransactionRequest) umi.Transaction { //nol
 
 	case umi.TxBurn:
 		transaction.SetVersion(umi.TxV15Burn)
+		transaction.SetAmount(*request.Amount)
+
+	case umi.TxIssue:
+		recipient, _ := umi.ParseAddress(*request.RecipientAddress)
+
+		transaction.SetVersion(umi.TxV16Issue)
+		transaction.SetRecipient(recipient)
 		transaction.SetAmount(*request.Amount)
 	}
 

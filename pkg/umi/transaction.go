@@ -49,6 +49,7 @@ const (
 	TxV13ActivateTransit
 	TxV14DeactivateTransit
 	TxV15Burn
+	TxV16Issue
 )
 
 const (
@@ -61,6 +62,7 @@ const (
 	TxActivateTransit     = "activateTransit"
 	TxDeactivateTransit   = "deactivateTransit"
 	TxBurn                = "burn"
+	TxIssue               = "issue"
 	txUnknown             = "unknown"
 )
 
@@ -94,6 +96,8 @@ func (transaction Transaction) Type() string { //nolint:revive,cyclop // Easy to
 		return TxDeactivateTransit
 	case TxV15Burn:
 		return TxBurn
+	case TxV16Issue:
+		return TxIssue
 	default:
 		return txUnknown
 	}
@@ -135,7 +139,7 @@ func (transaction Transaction) SetRecipient(recipient Address) Transaction {
 
 func (transaction Transaction) Amount() uint64 {
 	switch transaction.Type() {
-	case TxGenesis, TxSend, TxBurn:
+	case TxGenesis, TxSend, TxBurn, TxIssue:
 		return binary.BigEndian.Uint64(transaction[69:77])
 
 	case TxCreateStructure:

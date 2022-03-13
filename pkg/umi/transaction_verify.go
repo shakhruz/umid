@@ -44,6 +44,9 @@ func (transaction Transaction) Verify() error {
 
 	case TxBurn:
 		return verifyBurn(transaction)
+
+	case TxIssue:
+		return verifyIssue(transaction)
 	}
 
 	return nil
@@ -160,6 +163,25 @@ func verifyBurn(transaction Transaction) error {
 
 	if sender.Prefix() == PfxVerGenesis {
 		return fmt.Errorf("%w: sender must not be 'genesis'", ErrVerify)
+	}
+
+	if !verifySignature(transaction) {
+		return fmt.Errorf("%w: invalid signature", ErrVerify)
+	}
+
+	return nil
+}
+
+func verifyIssue(transaction Transaction) error {
+	sender := transaction.Sender()
+	recipient := transaction.Recipient()
+
+	if sender.Prefix() != PfxVerUmi {
+		return fmt.Errorf("%w: sender must be 'umi'", ErrVerify)
+	}
+
+	if recipient.Prefix() != PfxVerNft {
+		return fmt.Errorf("%w: recipient must be 'nft'", ErrVerify)
 	}
 
 	if !verifySignature(transaction) {

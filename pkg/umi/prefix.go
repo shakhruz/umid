@@ -31,6 +31,7 @@ const (
 	PfxVerIsp     Prefix = 0x2670
 	PfxVerGls     Prefix = 0x1d93
 	PfxVerGlz     Prefix = 0x1d9a
+	PfxVerNft     Prefix = 0x38d4
 
 	pfxGenesis string = "genesis"
 )

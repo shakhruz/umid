@@ -191,7 +191,7 @@ func processPushMempool(r *http.Request, mempool iMempool) (*umi.Transaction, *E
 	transaction := (umi.Transaction)(request.Data)
 	txVer := transaction.Version()
 
-	if txVer < umi.TxV8Send || txVer > umi.TxV15Burn {
+	if txVer < umi.TxV8Send || txVer > umi.TxV16Issue {
 		return nil, NewError(400, "Unsupported tx version")
 	}
 

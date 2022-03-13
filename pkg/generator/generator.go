@@ -93,6 +93,7 @@ func (generator *Generator) generateBlock() {
 			umi.TxActivateTransit:     generator.processActivateTransit,
 			umi.TxDeactivateTransit:   generator.processDeactivateTransit,
 			umi.TxBurn:                generator.processBurn,
+			umi.TxIssue:               generator.processIssue,
 		}
 
 		processor, ok := processors[transaction.Type()]
@@ -369,6 +370,32 @@ func (generator *Generator) processBurn(transaction umi.Transaction, _ uint32) (
 	}
 
 	if _, err := generator.confirmer.ProcessBurnLegacy(transaction); err != nil {
+		log.Printf("ошибка: %v", err)
+
+		return false, fmt.Errorf("%w", err)
+	}
+
+	return true, nil
+}
+
+func (generator *Generator) processIssue(transaction umi.Transaction, _ uint32) (bool, error) {
+	prefix := transaction.Prefix()
+
+	structure, ok := generator.confirmer.Structure(prefix)
+	if !ok {
+		log.Printf("структуры '%s' не существует", prefix.String())
+
+		return false, nil
+	}
+
+	sender := transaction.Sender()
+	if !structure.IsOwner(sender) {
+		log.Printf("адрес %s не владелец структуры '%s'", sender.String(), prefix.String())
+
+		return false, nil
+	}
+
+	if _, err := generator.confirmer.ProcessIssueLegacy(transaction); err != nil {
 		log.Printf("ошибка: %v", err)
 
 		return false, fmt.Errorf("%w", err)

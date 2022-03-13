@@ -133,6 +133,7 @@ func (confirmer *Confirmer) ProcessBlock(blockRaw []byte) error {
 		umi.TxActivateTransit:     confirmer.processActivateTransit,
 		umi.TxDeactivateTransit:   confirmer.processDeactivateTransit,
 		umi.TxBurn:                confirmer.processBurn,
+		umi.TxIssue:               confirmer.processIssue,
 	}
 
 	for txIndex, txCount := 0, block.TransactionCount(); txIndex < txCount; txIndex++ {
@@ -454,6 +455,24 @@ func (confirmer *Confirmer) processBurn(transaction umi.Transaction) error {
 	// Уменьшаем баланс отправителя и увеличиваем его счетчик транзакций.
 	// Возвращаем ошибку в случае, если аккаунт не существует или баланс меньше чем сумма транзакции.
 	return confirmer.decreaseAccountBalance(sender, amount)
+}
+
+func (confirmer *Confirmer) processIssue(transaction umi.Transaction) error {
+	prefix := transaction.Prefix()
+	sender := transaction.Sender()
+	recipient := transaction.Recipient()
+	amount := transaction.Amount()
+
+	structure, ok := confirmer.Structure(prefix)
+	if !ok {
+		return fmt.Errorf("%s: %w", prefix.String(), errStructureDoesNotExist)
+	}
+
+	if !structure.IsOwner(sender) {
+		return fmt.Errorf("%s %s: %w", sender.String(), prefix.String(), errInsufficientPrivileges)
+	}
+
+	return confirmer.increaseAccountBalance(recipient, amount)
 }
 
 // increaseAccountBalance увеличивает баланс счета, связанного с адресом на указанную сумму
