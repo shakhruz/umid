@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"gitlab.com/umitop/umid/pkg/ledger"
+	"gitlab.com/umitop/umid/pkg/nft"
 	"gitlab.com/umitop/umid/pkg/umi"
 )
 
@@ -37,16 +38,29 @@ type iMempool interface {
 	Mempool() (txs []*umi.Transaction)
 }
 
-type Generator struct {
-	confirmer *ledger.ConfirmerLegacy
-	mempool   iMempool
+type iNftMempool interface {
+	Mempool() (txs [][]byte)
 }
 
-func NewGenerator(confirmer *ledger.ConfirmerLegacy, mempool iMempool) *Generator {
+type Generator struct {
+	confirmer  *ledger.ConfirmerLegacy
+	mempool    iMempool
+	nftMempool iNftMempool
+	nftStorage *nft.Storage
+}
+
+func NewGenerator(confirmer *ledger.ConfirmerLegacy, mempool iMempool, nftMempool iNftMempool) *Generator {
 	return &Generator{
-		confirmer: confirmer,
-		mempool:   mempool,
+		confirmer:  confirmer,
+		mempool:    mempool,
+		nftMempool: nftMempool,
 	}
+}
+
+func (generator *Generator) SetNftStorage(nftStorage *nft.Storage) *Generator {
+	generator.nftStorage = nftStorage
+
+	return generator
 }
 
 func (generator *Generator) Worker(ctx context.Context) {
@@ -77,12 +91,12 @@ func (generator *Generator) generateBlock() {
 	txCount := 0
 
 	for _, transactionRaw := range transactions {
-		transaction := make(umi.Transaction, umi.TxConfirmedLength)
-		copy(transaction[:umi.TxLength], *transactionRaw)
-
 		if txCount == 65535 {
 			break
 		}
+
+		transaction := make(umi.Transaction, umi.TxConfirmedLength)
+		copy(transaction[:umi.TxLength], *transactionRaw)
 
 		processors := map[string]func(umi.Transaction, uint32) (bool, error){
 			umi.TxSend:                generator.processSend,
@@ -114,6 +128,46 @@ func (generator *Generator) generateBlock() {
 		txCount++
 	}
 
+	// NFT
+	nftTokens := make([][]byte, 0)
+
+	if txCount < 65535 {
+		nftTransactions := generator.nftMempool.Mempool()
+
+		for _, nftTransactionRaw := range nftTransactions {
+			if txCount == 65535 {
+				break
+			}
+
+			transaction := make(nft.Transaction, len(nftTransactionRaw))
+			copy(transaction[:], nftTransactionRaw)
+
+			txWitness := make(umi.Transaction, umi.TxConfirmedLength)
+			txWitness.SetVersion(umi.TxV18MintNftWitness)
+			txWitness.SetSender(transaction.Sender())
+			txWitness.SetHash(transaction.Hash())
+			txWitness.SetAmount(uint64(len(transaction)))
+			txWitness.SetTimestamp(transaction.Timestamp())
+			txWitness.SetNonce(transaction.Nonce())
+			copy(txWitness[86:150], ed25519.Sign(secKey(), txWitness[0:86]))
+
+			ok, err := generator.processMintNftWitness(txWitness, timestamp)
+			if err != nil {
+				return
+			}
+
+			if !ok {
+				log.Println("not OK")
+				continue
+			}
+
+			block = append(block, txWitness...)
+			txCount++
+
+			nftTokens = append(nftTokens, transaction)
+		}
+	}
+
 	if txCount == 0 {
 		return
 	}
@@ -124,15 +178,29 @@ func (generator *Generator) generateBlock() {
 
 	if err := generator.confirmer.AppendBlockLegacy(block); err != nil {
 		log.Printf("AppendBlockLegacy error: %v", err)
+	} else {
+		if len(nftTokens) > 0 {
+			for _, data := range nftTokens {
+				if err := generator.nftStorage.AppendData(data); err != nil {
+					log.Printf("AppendData error: %v", err)
+				}
+			}
+		}
 	}
 }
 
 func signBlock(block umi.Block) {
-	secKey, _ := base64.StdEncoding.DecodeString(os.Getenv("UMI_MASTER_KEY"))
+	secKey := secKey()
 	pubKey := secKey[ed25519.PublicKeySize:ed25519.PrivateKeySize]
 
 	copy(block[71:103], pubKey)
 	copy(block[103:167], ed25519.Sign(secKey, block[0:103]))
+}
+
+func secKey() ed25519.PrivateKey {
+	secKey, _ := base64.StdEncoding.DecodeString(os.Getenv("UMI_MASTER_KEY"))
+
+	return secKey
 }
 
 func (generator *Generator) processSend(transaction umi.Transaction, _ uint32) (bool, error) {
@@ -396,6 +464,28 @@ func (generator *Generator) processIssue(transaction umi.Transaction, _ uint32) 
 	}
 
 	if _, err := generator.confirmer.ProcessIssueLegacy(transaction); err != nil {
+		log.Printf("ошибка: %v", err)
+
+		return false, fmt.Errorf("%w", err)
+	}
+
+	return true, nil
+}
+
+func (generator *Generator) processMintNftWitness(transaction umi.Transaction, _ uint32) (bool, error) {
+	sender := transaction.Sender()
+
+	senderAccount, ok := generator.confirmer.Account(sender)
+	if !ok {
+		return false, nil
+	}
+
+	availableBalance := generator.confirmer.AvailableBalance(sender, senderAccount)
+	if availableBalance < transaction.Amount() {
+		return false, nil
+	}
+
+	if _, err := generator.confirmer.ProcessMintNftWitnessLegacy(transaction); err != nil {
 		log.Printf("ошибка: %v", err)
 
 		return false, fmt.Errorf("%w", err)

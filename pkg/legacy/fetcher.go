@@ -31,13 +31,15 @@ import (
 
 	"gitlab.com/umitop/umid/pkg/config"
 	"gitlab.com/umitop/umid/pkg/ledger"
+	"gitlab.com/umitop/umid/pkg/nft"
 	"gitlab.com/umitop/umid/pkg/umi"
 )
 
 type Fetcher struct {
-	config    *config.Config
-	client    *http.Client
-	confirmer *ledger.ConfirmerLegacy
+	config     *config.Config
+	client     *http.Client
+	confirmer  *ledger.ConfirmerLegacy
+	nftStorage *nft.Storage
 }
 
 func NewFetcher(conf *config.Config) *Fetcher {
@@ -51,6 +53,10 @@ func (fetcher *Fetcher) SetConfirmer(confirmer *ledger.ConfirmerLegacy) {
 	fetcher.confirmer = confirmer
 }
 
+func (fetcher *Fetcher) SetNftStorage(nftStorage *nft.Storage) {
+	fetcher.nftStorage = nftStorage
+}
+
 func (fetcher *Fetcher) Worker(ctx context.Context) {
 	ticker := time.NewTicker(time.Second * 3)
 	defer ticker.Stop()
@@ -60,6 +66,25 @@ func (fetcher *Fetcher) Worker(ctx context.Context) {
 		case <-ticker.C:
 			for {
 				if fetcher.fetchBlocks(ctx) < 1 {
+					break
+				}
+			}
+
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (fetcher *Fetcher) Worker2(ctx context.Context) {
+	ticker := time.NewTicker(time.Second * 3)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			for {
+				if fetcher.fetchNfts(ctx) < 1 {
 					break
 				}
 			}
@@ -96,6 +121,51 @@ func newRequestBody(height uint32, limit int) *bytes.Buffer {
 	_ = json.NewEncoder(buffer).Encode(requestBody)
 
 	return buffer
+}
+
+func (fetcher *Fetcher) fetchNfts(ctx context.Context) int {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute*10)
+	defer cancel()
+
+	height := fetcher.nftStorage.Count()
+	url := fmt.Sprintf("%s/api/nfts?raw=true&height=%d", fetcher.config.Peer, height)
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		log.Printf("fetch NFT error: %v", err)
+
+		return -1
+	}
+
+	response, err := fetcher.client.Do(request)
+	if err != nil {
+		log.Printf("fetch NFT error: %v", err)
+
+		return -1
+	}
+
+	defer response.Body.Close()
+
+	responseBody := struct {
+		Data  *[][]byte        `json:"data,omitempty"`
+		Error *json.RawMessage `json:"error,omitempty"`
+	}{}
+
+	if err := json.NewDecoder(response.Body).Decode(&responseBody); err != nil {
+		log.Printf("fetch NFT error: %v", err)
+
+		return -1
+	}
+
+	if responseBody.Data == nil || len(*responseBody.Data) == 0 {
+		return 0
+	}
+
+	if err := fetcher.nftStorage.AppendData((*responseBody.Data)[0]); err != nil {
+		log.Printf("sync NFT error: %v", err)
+	}
+
+	return len(*responseBody.Data)
 }
 
 func (fetcher *Fetcher) fetchBlocks(ctx context.Context) int {

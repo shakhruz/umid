@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"gitlab.com/umitop/umid/pkg/config"
+	"gitlab.com/umitop/umid/pkg/nft"
 	"gitlab.com/umitop/umid/pkg/umi"
 )
 
@@ -40,21 +41,23 @@ type iMempool interface {
 }
 
 type Pusher struct {
-	config  *config.Config
-	client  *http.Client
-	mempool iMempool
-	queue   chan *umi.Transaction
+	config     *config.Config
+	client     *http.Client
+	mempool    iMempool
+	queue      chan *umi.Transaction
+	nftMempool *nft.Mempool
 }
 
-func NewPusher(conf *config.Config, mempool iMempool) *Pusher {
+func NewPusher(conf *config.Config, mempool iMempool, nftMempool *nft.Mempool) *Pusher {
 	queue := make(chan *umi.Transaction, 1_000)
 	mempool.Subscribe(queue)
 
 	return &Pusher{
-		config:  conf,
-		client:  newClient(),
-		mempool: mempool,
-		queue:   queue,
+		config:     conf,
+		client:     newClient(),
+		mempool:    mempool,
+		queue:      queue,
+		nftMempool: nftMempool,
 	}
 }
 
@@ -73,10 +76,52 @@ func (pusher *Pusher) Worker(ctx context.Context) {
 				pusher.push(ctx, txs)
 			}
 
+			txz := pusher.nftMempool.Mempool()
+			if len(txz) > 0 {
+				pusher.pushNft(ctx, txz)
+			}
+
 		case <-ctx.Done():
 			return
 		}
 	}
+}
+
+func (pusher *Pusher) pushNft(ctx context.Context, txs [][]byte) {
+	url := fmt.Sprintf("%s/api/mempool", pusher.config.Peer)
+
+	for _, transaction := range txs {
+		ctx2, cancel := context.WithTimeout(ctx, time.Second)
+		requestBody := newPushNftRequest(transaction)
+		request, _ := http.NewRequestWithContext(ctx2, http.MethodPost, url, requestBody)
+		request.Header.Set("Content-Type", "application/json")
+
+		response, err := pusher.client.Do(request)
+		if err != nil {
+			cancel()
+			log.Println(err.Error())
+
+			return
+		}
+
+		_, _ = io.Copy(io.Discard, response.Body)
+		_ = response.Body.Close()
+
+		cancel()
+	}
+}
+
+func newPushNftRequest(transaction []byte) *bytes.Buffer {
+	buffer := new(bytes.Buffer)
+	requestBody := struct {
+		Data []byte `json:"data"`
+	}{
+		Data: transaction,
+	}
+
+	_ = json.NewEncoder(buffer).Encode(requestBody)
+
+	return buffer
 }
 
 func (pusher *Pusher) push(ctx context.Context, txs []*umi.Transaction) {

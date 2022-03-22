@@ -23,6 +23,7 @@ package umi
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"time"
 )
@@ -50,6 +51,8 @@ const (
 	TxV14DeactivateTransit
 	TxV15Burn
 	TxV16Issue
+	TxV17MintNft
+	TxV18MintNftWitness
 )
 
 const (
@@ -63,6 +66,8 @@ const (
 	TxDeactivateTransit   = "deactivateTransit"
 	TxBurn                = "burn"
 	TxIssue               = "issue"
+	TxMintNft             = "mintNft"
+	TxMintNftWitness      = "mintNftWitness"
 	txUnknown             = "unknown"
 )
 
@@ -73,7 +78,21 @@ func NewTransaction() Transaction {
 }
 
 func (transaction Transaction) Hash() Hash {
+	if transaction.Version() == TxV18MintNftWitness {
+		var hash Hash
+
+		copy(hash[0:32], transaction[37:69])
+
+		return hash
+	}
+
 	return sha256.Sum256(transaction[0:150])
+}
+
+func (transaction Transaction) SetHash(hash Hash) Transaction {
+	copy(transaction[37:69], hash[0:32])
+
+	return transaction
 }
 
 func (transaction Transaction) Type() string { //nolint:revive,cyclop // Easy to read and understand
@@ -98,6 +117,10 @@ func (transaction Transaction) Type() string { //nolint:revive,cyclop // Easy to
 		return TxBurn
 	case TxV16Issue:
 		return TxIssue
+	case TxV17MintNft:
+		return TxMintNft
+	case TxV18MintNftWitness:
+		return TxMintNftWitness
 	default:
 		return txUnknown
 	}
@@ -139,7 +162,7 @@ func (transaction Transaction) SetRecipient(recipient Address) Transaction {
 
 func (transaction Transaction) Amount() uint64 {
 	switch transaction.Type() {
-	case TxGenesis, TxSend, TxBurn, TxIssue:
+	case TxGenesis, TxSend, TxBurn, TxIssue, TxMintNftWitness:
 		return binary.BigEndian.Uint64(transaction[69:77])
 
 	case TxCreateStructure:
@@ -385,7 +408,7 @@ func (transaction Transaction) SetFeeAccountTransactionCount(height uint64) {
 
 func (transaction Transaction) HasRecipient() bool {
 	switch transaction.Type() {
-	case TxCreateStructure, TxUpdateStructure, TxBurn:
+	case TxCreateStructure, TxUpdateStructure, TxBurn, TxMintNftWitness:
 		return false
 	default:
 		return true
@@ -400,6 +423,55 @@ func (transaction Transaction) HasFee() bool {
 
 //nolint:funlen,revive // ...
 func (transaction Transaction) MarshalJSON() ([]byte, error) {
+	if transaction[0] == TxV17MintNft {
+		nftData := struct {
+			Hash    string `json:"hash"`
+			Type    string `json:"type"`
+			Version uint8  `json:"version"`
+
+			Amount uint64 `json:"amount"`
+
+			SenderAddress string `json:"senderAddress"`
+
+			Meta json.RawMessage `json:"meta,omitempty"`
+			Data []byte          `json:"data,omitempty"`
+		}{
+			Type:    transaction.Type(),
+			Version: transaction.Version(),
+			Amount:  uint64(len(transaction)),
+		}
+
+		hash := sha256.Sum256(transaction[:])
+		nftData.Hash = hex.EncodeToString(hash[:])
+
+		metaLength := int(binary.BigEndian.Uint32(transaction[9:13]))
+		if metaLength > 0 {
+			metaStart := 17
+			metaStop := metaStart + metaLength
+
+			nftData.Meta = (json.RawMessage)(transaction[metaStart:metaStop])
+		}
+
+		dataLength := int(binary.BigEndian.Uint32(transaction[13:17]))
+		if dataLength > 0 {
+			dataStart := 17 + metaLength
+			dataStop := dataStart + dataLength
+
+			nftData.Data = transaction[dataStart:dataStop]
+		}
+
+		senderStart := 17 + metaLength + dataLength
+		senderStop := senderStart + AddrLength
+
+		var addr Address
+
+		copy(addr[:], transaction[senderStart:senderStop])
+
+		nftData.SenderAddress = addr.String()
+
+		return json.Marshal(nftData) //nolint:wrapcheck // ...
+	}
+
 	data := struct {
 		Height                *uint64 `json:"height,omitempty"`
 		BlockTimestamp        *string `json:"blockTimestamp,omitempty"`

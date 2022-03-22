@@ -22,6 +22,8 @@ package umi
 
 import (
 	"crypto/ed25519"
+	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 )
@@ -47,6 +49,12 @@ func (transaction Transaction) Verify() error {
 
 	case TxIssue:
 		return verifyIssue(transaction)
+
+	case TxMintNft:
+		return verifyMintNft(transaction)
+
+	case TxMintNftWitness:
+		return verifyMintNftWitness(transaction)
 	}
 
 	return nil
@@ -186,6 +194,63 @@ func verifyIssue(transaction Transaction) error {
 
 	if !verifySignature(transaction) {
 		return fmt.Errorf("%w: invalid signature", ErrVerify)
+	}
+
+	return nil
+}
+
+func verifyMintNft(transaction Transaction) error {
+	tx := transaction
+
+	hdrLength := 17  // type (1 byte), timestamp (4 byte), nonce (4 bytes), meta len (4 bytes), data len (4 bytes)
+	minLength := 115 // header (17 bytes) + sender (34) + signature (64 bytes)
+	txLength := len(tx)
+
+	if txLength < minLength {
+		return fmt.Errorf("%w: too short", ErrVerify)
+	}
+
+	metaLength := int(binary.BigEndian.Uint32(tx[9:13]))
+	dataLength := int(binary.BigEndian.Uint32(tx[13:17]))
+	totalLength := minLength + metaLength + dataLength
+
+	if txLength != totalLength {
+		return fmt.Errorf("%w: invalid length", ErrVerify)
+	}
+
+	var sender Address
+
+	senderOffset := hdrLength + metaLength + dataLength // addr prefix
+	sigOffset := senderOffset + AddrLength
+
+	copy(sender[:], tx[senderOffset:sigOffset])
+
+	pub := sender.PublicKey()
+
+	if !ed25519.Verify((ed25519.PublicKey)(pub), tx[:sigOffset], tx[sigOffset:]) {
+		return fmt.Errorf("%w: inavlid signature", ErrVerify)
+	}
+
+	if metaLength > 0 {
+		type MetaSchema struct {
+			ContentType *string `json:"contentType"`
+		}
+
+		meta := &MetaSchema{}
+
+		if err := json.Unmarshal(tx[hdrLength:hdrLength+metaLength], meta); err != nil {
+			return fmt.Errorf("%w: malformed meta", ErrVerify)
+		}
+	}
+
+	return nil
+}
+
+func verifyMintNftWitness(transaction Transaction) error {
+	sender := transaction.Sender()
+
+	if sender.Prefix() != PfxVerNft {
+		return fmt.Errorf("%w: sender must be 'nft'", ErrVerify)
 	}
 
 	return nil

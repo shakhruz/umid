@@ -38,6 +38,7 @@ type Ledger struct {
 	accounts     map[umi.Prefix]map[umi.Address]*Account
 	structures   map[umi.Prefix]*Structure
 	transactions map[umi.Hash]struct{}
+	nfts         map[umi.Hash]umi.Address
 
 	LastBlockTimestamp    uint32
 	LastBlockHeight       uint32
@@ -51,6 +52,7 @@ func NewLedger(conf *config.Config) *Ledger {
 		accounts:     make(map[umi.Prefix]map[umi.Address]*Account),
 		structures:   make(map[umi.Prefix]*Structure),
 		transactions: make(map[umi.Hash]struct{}),
+		nfts:         make(map[umi.Hash]umi.Address),
 	}
 
 	// Структуру UMI существует по умолчанию
@@ -115,4 +117,19 @@ func (ledger *Ledger) HasTransaction(hash umi.Hash) bool {
 	_, ok := ledger.transactions[hash]
 
 	return ok
+}
+
+func (ledger *Ledger) NftsByAddr(addr umi.Address) []umi.Hash {
+	ledger.RLock()
+	defer ledger.RUnlock()
+
+	nfts := make([]umi.Hash, 0)
+
+	for hsh, adr := range ledger.nfts {
+		if adr == addr {
+			nfts = append(nfts, hsh)
+		}
+	}
+
+	return nfts
 }

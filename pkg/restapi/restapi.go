@@ -23,6 +23,7 @@ package restapi
 import (
 	"gitlab.com/umitop/umid/pkg/events"
 	"gitlab.com/umitop/umid/pkg/ledger"
+	"gitlab.com/umitop/umid/pkg/nft"
 	"gitlab.com/umitop/umid/pkg/storage"
 )
 
@@ -30,6 +31,8 @@ type RestAPI struct {
 	blockchain storage.IBlockchain
 	ledger     *ledger.Ledger
 	mempool    *storage.Mempool
+	nftMempool *nft.Mempool
+	nftStorage *nft.Storage
 	index      *storage.Index
 	events     *events.Events
 }
@@ -48,6 +51,14 @@ func (restApi *RestAPI) SetLedger(ledger1 *ledger.Ledger) {
 
 func (restApi *RestAPI) SetMempool(mempool *storage.Mempool) {
 	restApi.mempool = mempool
+}
+
+func (restApi *RestAPI) SetNftMempool(nftMempool *nft.Mempool) {
+	restApi.nftMempool = nftMempool
+}
+
+func (restApi *RestAPI) SetNftStorage(nftStorage *nft.Storage) {
+	restApi.nftStorage = nftStorage
 }
 
 func (restApi *RestAPI) SetIndex(index *storage.Index) {

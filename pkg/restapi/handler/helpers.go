@@ -52,6 +52,10 @@ type iMempool interface {
 	UnconfirmedBalance(address umi.Address) int64
 }
 
+type iNftMempool interface {
+	Push(transaction []byte) error
+}
+
 type Error struct {
 	Code    int32  `json:"code"`
 	Message string `json:"message"`

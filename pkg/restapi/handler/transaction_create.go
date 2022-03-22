@@ -24,6 +24,7 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
+	"gitlab.com/umitop/umid/pkg/nft"
 	"net/http"
 	"time"
 
@@ -31,15 +32,17 @@ import (
 )
 
 type CreateTransactionRequest struct {
-	Type             *string `json:"type,omitempty"`
-	SenderAddress    *string `json:"senderAddress,omitempty"`
-	RecipientAddress *string `json:"recipientAddress,omitempty"`
-	Amount           *uint64 `json:"amount,omitempty"`
-	Prefix           *string `json:"prefix,omitempty"`
-	Description      *string `json:"description,omitempty"`
-	ProfitPercent    *uint16 `json:"profitPercent,omitempty"`
-	FeePercent       *uint16 `json:"feePercent,omitempty"`
-	Seed             *[]byte `json:"seed,omitempty"`
+	Type             *string          `json:"type,omitempty"`
+	SenderAddress    *string          `json:"senderAddress,omitempty"`
+	RecipientAddress *string          `json:"recipientAddress,omitempty"`
+	Amount           *uint64          `json:"amount,omitempty"`
+	Prefix           *string          `json:"prefix,omitempty"`
+	Description      *string          `json:"description,omitempty"`
+	ProfitPercent    *uint16          `json:"profitPercent,omitempty"`
+	FeePercent       *uint16          `json:"feePercent,omitempty"`
+	Seed             *[]byte          `json:"seed,omitempty"`
+	NftMeta          *json.RawMessage `json:"nftMeta,omitempty"`
+	NftData          *[]byte          `json:"nftData,omitempty"`
 }
 
 type CreateTransactionResponse struct {
@@ -107,6 +110,9 @@ func verifyCreateTransactionRequest(request *CreateTransactionRequest) *Error {
 	case umi.TxIssue:
 		return verifyTxIssue(request)
 
+	case umi.TxMintNft:
+		return verifyTxMintNft(request)
+
 	default:
 		return NewError(-1, "Некорректное значение параметра 'type'.")
 	}
@@ -126,7 +132,7 @@ func verifySender(request *CreateTransactionRequest) *Error {
 
 func verifyRecipient(request *CreateTransactionRequest) *Error {
 	if request.RecipientAddress == nil {
-		return NewError(-1, "Для транзакции имеющий тип 'send' параметр 'recipientAddress' является обязательным.")
+		return NewError(-1, "Параметр 'recipientAddress' является обязательным.")
 	}
 
 	if !umi.IsBech32Valid(*request.RecipientAddress) {
@@ -217,12 +223,24 @@ func verifyTxIssue(request *CreateTransactionRequest) *Error {
 		return err
 	}
 
+	if err := verifyRecipient(request); err != nil {
+		return err
+	}
+
 	if request.Amount == nil {
 		return NewError(-1, "Для транзакции имеющий тип 'issue' параметр 'amount' является обязательным.")
 	}
 
 	if *request.Amount == 0 {
 		return NewError(-1, "Значение параметра 'amount' должно быть больше нуля.")
+	}
+
+	return nil
+}
+
+func verifyTxMintNft(request *CreateTransactionRequest) *Error {
+	if err := verifySender(request); err != nil {
+		return err
 	}
 
 	return nil
@@ -298,6 +316,25 @@ func buildTransaction(request *CreateTransactionRequest) umi.Transaction { //nol
 		transaction.SetVersion(umi.TxV16Issue)
 		transaction.SetRecipient(recipient)
 		transaction.SetAmount(*request.Amount)
+
+	case umi.TxMintNft:
+		tx := nft.NewTransaction()
+
+		tx.SetTimestamp(uint32(time.Now().Unix()))
+		tx.SetNonce(uint32(time.Now().Nanosecond()))
+
+		if request.NftMeta != nil {
+			tx.SetMeta(*request.NftMeta)
+		}
+
+		if request.NftData != nil {
+			tx.SetData(*request.NftData)
+		}
+
+		tx.SetSender(sender)
+		tx.Sign(ed25519.NewKeyFromSeed(*request.Seed))
+
+		return (umi.Transaction)(*tx)
 	}
 
 	timestamp := uint32(time.Now().Unix())

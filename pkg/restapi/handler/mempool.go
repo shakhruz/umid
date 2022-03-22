@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gitlab.com/umitop/umid/pkg/nft"
 	"net/http"
 	"strings"
 	"time"
@@ -34,6 +35,7 @@ import (
 var (
 	errTimestampFuture     = errors.New("некорректная метка времени: транзакция из будущего")
 	errTimestampPast       = errors.New("некорректная метка времени: просроченная траназкция")
+	errProhibitedSender    = errors.New("некорректный отправитель")
 	errProhibitedRecipient = errors.New("некорректный получатель")
 )
 
@@ -93,12 +95,12 @@ func ListMempoolByAddress(mempool iMempool) http.HandlerFunc {
 	}
 }
 
-func PushMempool(mempool iMempool) http.HandlerFunc {
+func PushMempool(mempool iMempool, nftMempool iNftMempool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setHeaders(w, r)
 
 		response := new(PushMempoolResponse)
-		response.Data, response.Error = processPushMempool(r, mempool)
+		response.Data, response.Error = processPushMempool(r, mempool, nftMempool)
 
 		_ = json.NewEncoder(w).Encode(response)
 	}
@@ -169,7 +171,7 @@ func processListMempoolByAddress(r *http.Request, mempool iMempool) (*ListMempoo
 	return data, nil
 }
 
-func processPushMempool(r *http.Request, mempool iMempool) (*umi.Transaction, *Error) {
+func processPushMempool(r *http.Request, mempool iMempool, nftMempool iNftMempool) (*umi.Transaction, *Error) {
 	contentType := r.Header.Get("Content-Type")
 
 	if !strings.HasPrefix(contentType, "application/json") {
@@ -182,6 +184,18 @@ func processPushMempool(r *http.Request, mempool iMempool) (*umi.Transaction, *E
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		return nil, NewError(400, err.Error())
+	}
+
+	if len(request.Data) > 1 && request.Data[0] == umi.TxV17MintNft {
+		if err := TxValidateNft(request.Data); err != nil {
+			return nil, NewError(400, err.Error())
+		}
+
+		if err := nftMempool.Push(request.Data); err != nil {
+			return nil, NewError(400, err.Error())
+		}
+
+		return (*umi.Transaction)(&request.Data), nil
 	}
 
 	if len(request.Data) != umi.TxLength {
@@ -246,4 +260,28 @@ func TxValidate(transaction umi.Transaction) error {
 
 	return fmt.Errorf("%w: с адреса '%s' можно отправить только на адрес 'umi'",
 		errProhibitedRecipient, senderPrefix.String())
+}
+
+func TxValidateNft(transaction []byte) error {
+	tx := (nft.Transaction)(transaction)
+
+	currentTime := uint32(time.Now().Unix())
+	txTime := tx.Timestamp()
+
+	if txTime > currentTime {
+		return errTimestampFuture
+	}
+
+	if currentTime-txTime > 3600 {
+		return errTimestampPast
+	}
+
+	senderPrefix := tx.Sender().Prefix()
+
+	if senderPrefix != umi.PfxVerNft {
+		return fmt.Errorf("%w: адрес с префиксом %s не может создать NFT-токен",
+			errProhibitedSender, senderPrefix.String())
+	}
+
+	return nil
 }

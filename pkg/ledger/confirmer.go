@@ -53,6 +53,7 @@ type Confirmer struct {
 
 	accounts   map[umi.Address]*Account
 	structures map[umi.Prefix]*Structure
+	nfts       map[umi.Hash]umi.Address
 	txHashes   []umi.Hash
 
 	// Абсолютная высота транзакции в блокчейне. Удобно использовать для синхронизации.
@@ -99,6 +100,7 @@ func (confirmer *Confirmer) AppendBlock(block []byte) error {
 func (confirmer *Confirmer) ResetState() {
 	confirmer.accounts = make(map[umi.Address]*Account)
 	confirmer.structures = make(map[umi.Prefix]*Structure)
+	confirmer.nfts = make(map[umi.Hash]umi.Address)
 	confirmer.txHashes = make([]umi.Hash, 0)
 
 	confirmer.ledger.RLock()
@@ -134,6 +136,7 @@ func (confirmer *Confirmer) ProcessBlock(blockRaw []byte) error {
 		umi.TxDeactivateTransit:   confirmer.processDeactivateTransit,
 		umi.TxBurn:                confirmer.processBurn,
 		umi.TxIssue:               confirmer.processIssue,
+		umi.TxMintNftWitness:      confirmer.processMintNftWitness,
 	}
 
 	for txIndex, txCount := 0, block.TransactionCount(); txIndex < txCount; txIndex++ {
@@ -475,6 +478,17 @@ func (confirmer *Confirmer) processIssue(transaction umi.Transaction) error {
 	return confirmer.increaseAccountBalance(recipient, amount)
 }
 
+func (confirmer *Confirmer) processMintNftWitness(transaction umi.Transaction) error {
+	sender := transaction.Sender()
+	amount := transaction.Amount()
+
+	confirmer.nfts[transaction.Hash()] = transaction.Sender()
+
+	// Уменьшаем баланс отправителя и увеличиваем его счетчик транзакций.
+	// Возвращаем ошибку в случае, если аккаунт не существует или баланс меньше чем сумма транзакции.
+	return confirmer.decreaseAccountBalance(sender, amount)
+}
+
 // increaseAccountBalance увеличивает баланс счета, связанного с адресом на указанную сумму
 // и увеличивает счетчик транзакций. Перед операцией баланс аккаунта считается по временной
 // метке обрабатываемого блока.
@@ -788,6 +802,11 @@ func (confirmer *Confirmer) Commit() error {
 		if ok && ((old.ProfitPercent != structure.ProfitPercent) || (old.FeePercent != structure.FeePercent)) {
 			confirmer.updateLevelAddresses(prefix)
 		}
+	}
+
+	// Фиксируем передачу прав на NFT
+	for hash, addr := range confirmer.nfts {
+		confirmer.ledger.nfts[hash] = addr
 	}
 
 	// Добавляем хеши транзакций

@@ -57,7 +57,7 @@ func (restApi *RestAPI) Router(w http.ResponseWriter, r *http.Request) {
 		case http.MethodGet:
 			handlerFunc = handler.ListMempool(restApi.mempool)
 		case http.MethodPost:
-			handlerFunc = handler.PushMempool(restApi.mempool)
+			handlerFunc = handler.PushMempool(restApi.mempool, restApi.nftMempool)
 		default:
 			handlerFunc = handler.MethodNotAllowed(http.MethodGet, http.MethodPost)
 		}
@@ -82,6 +82,14 @@ func (restApi *RestAPI) Router(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			handlerFunc = handler.ListTransactionsByAddress(restApi.blockchain, restApi.index)
+		default:
+			handlerFunc = handler.MethodNotAllowed(http.MethodGet)
+		}
+
+	case strings.HasPrefix(path, "/api/addresses/") && strings.HasSuffix(path, "/nfts"):
+		switch r.Method {
+		case http.MethodGet:
+			handlerFunc = handler.ListNftsByAddress(restApi.ledger)
 		default:
 			handlerFunc = handler.MethodNotAllowed(http.MethodGet)
 		}
@@ -130,6 +138,30 @@ func (restApi *RestAPI) Router(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			handlerFunc = handler.SubscribeAddress(restApi.events)
+		default:
+			handlerFunc = handler.MethodNotAllowed(http.MethodGet)
+		}
+
+	case strings.HasPrefix(path, "/api/nfts/") && strings.HasSuffix(path, "/meta"):
+		switch r.Method {
+		case http.MethodGet:
+			handlerFunc = handler.GetNftMeta(restApi.nftStorage)
+		default:
+			handlerFunc = handler.MethodNotAllowed(http.MethodGet)
+		}
+
+	case strings.HasPrefix(path, "/api/nfts/"):
+		switch r.Method {
+		case http.MethodGet:
+			handlerFunc = handler.GetNft(restApi.nftStorage)
+		default:
+			handlerFunc = handler.MethodNotAllowed(http.MethodGet)
+		}
+
+	case path == "/api/nfts":
+		switch r.Method {
+		case http.MethodGet:
+			handlerFunc = handler.ListNft(restApi.nftStorage)
 		default:
 			handlerFunc = handler.MethodNotAllowed(http.MethodGet)
 		}

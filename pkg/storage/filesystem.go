@@ -117,7 +117,7 @@ func OpenOrCreateFile(fsx iFS, name string, size int) (file IFile, err error) {
 			return nil, ErrIsDir
 		}
 
-		if fileInfo.Size() != int64(size) {
+		if size != 0 && fileInfo.Size() != int64(size) {
 			return nil, ErrSize
 		}
 

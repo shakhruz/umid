@@ -79,6 +79,7 @@ func (confirmer *ConfirmerLegacy) ProcessBlockLegacy(blockLegacyRaw []byte) (umi
 		umi.TxDeactivateTransit:   confirmer.ProcessDeactivateTransitLegacy,
 		umi.TxBurn:                confirmer.ProcessBurnLegacy,
 		umi.TxIssue:               confirmer.ProcessIssueLegacy,
+		umi.TxMintNftWitness:      confirmer.ProcessMintNftWitnessLegacy,
 	}
 
 	for txIndex, txCount := 0, block.TransactionCount(); txIndex < txCount; txIndex++ {
@@ -217,6 +218,16 @@ func (confirmer *ConfirmerLegacy) ProcessIssueLegacy(transaction umi.Transaction
 
 	confirmer.setTxSender(transaction, transaction.Sender())
 	confirmer.setTxRecipient(transaction, transaction.Recipient())
+
+	return transaction, nil
+}
+
+func (confirmer *ConfirmerLegacy) ProcessMintNftWitnessLegacy(transaction umi.Transaction) (umi.Transaction, error) {
+	if err := confirmer.processMintNftWitness(transaction); err != nil {
+		return nil, err
+	}
+
+	confirmer.setTxSender(transaction, transaction.Sender())
 
 	return transaction, nil
 }

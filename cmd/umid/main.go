@@ -34,6 +34,7 @@ import (
 	"gitlab.com/umitop/umid/pkg/generator"
 	"gitlab.com/umitop/umid/pkg/ledger"
 	"gitlab.com/umitop/umid/pkg/legacy"
+	"gitlab.com/umitop/umid/pkg/nft"
 	"gitlab.com/umitop/umid/pkg/restapi"
 	"gitlab.com/umitop/umid/pkg/storage"
 	"gitlab.com/umitop/umid/pkg/syncer"
@@ -69,6 +70,16 @@ func main() {
 	mempool := storage.NewMempool()
 	mempool.SetLedger(ledger1)
 
+	nftMempool := nft.NewMempool()
+	nftMempool.SetLedger(ledger1)
+
+	nftStorage := nft.NewStorage(conf)
+
+	if err := nftStorage.OpenOrCreate(); err != nil {
+		log.Fatal(err)
+	}
+	defer nftStorage.Close()
+
 	event := events.NewEvents()
 
 	go func() {
@@ -82,6 +93,16 @@ func main() {
 
 		log.Printf("found %d blocks, time: %v.", blockchain.Height(), time.Since(currentTime))
 
+		currentTime = time.Now()
+
+		log.Println("scanning nft...")
+
+		if err := nftStorage.Scan(); err != nil {
+			log.Fatal(err)
+		}
+
+		log.Printf("found %d NFT tokens, time: %v.", nftStorage.Count(), time.Since(currentTime))
+
 		if blockchain.Height() == 0 {
 			if err := confirmer.AppendBlock(storage.GenesisBlock(conf.Network)); err != nil {
 				log.Fatal(err)
@@ -89,14 +110,18 @@ func main() {
 		}
 
 		if _, ok := os.LookupEnv("UMI_MASTER_KEY"); ok {
-			go generator.NewGenerator(confirmer, mempool).Worker(ctx)
+			go generator.NewGenerator(confirmer, mempool, nftMempool).
+				SetNftStorage(nftStorage).
+				Worker(ctx)
 		} else {
 			fetcher := legacy.NewFetcher(conf)
 			fetcher.SetConfirmer(confirmer)
+			fetcher.SetNftStorage(nftStorage)
 
 			go fetcher.Worker(ctx)
+			go fetcher.Worker2(ctx)
 
-			pusher := legacy.NewPusher(conf, mempool)
+			pusher := legacy.NewPusher(conf, mempool, nftMempool)
 
 			go pusher.Worker(ctx)
 
@@ -107,8 +132,10 @@ func main() {
 		}
 
 		mempool.SubscribeTo(blockchain)
+		nftMempool.SubscribeTo(blockchain)
 
 		go mempool.Worker(ctx)
+		go nftMempool.Worker(ctx)
 	}()
 
 	api := restapi.NewRestAPI()
@@ -116,6 +143,8 @@ func main() {
 	api.SetLedger(ledger1)
 	api.SetIndex(index)
 	api.SetMempool(mempool)
+	api.SetNftMempool(nftMempool)
+	api.SetNftStorage(nftStorage)
 	api.SetEvents(event)
 
 	syncr := syncer.NewSyncer()
